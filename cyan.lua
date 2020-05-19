@@ -269,9 +269,6 @@ function(drive) -- boot()
         end
 
         drive[1].close(handle)
-        if passwordOnBoot then
-            checkPassword()
-        end
         status(bootPreview(drive, 1), F, .5, F, F, 1)
         if eepromGetData() ~= drive[3] then
             eepromSetData(drive[3])
@@ -345,8 +342,8 @@ function() -- checkPassword()
     end
 end
 
-status("Press ALT to stay in bootloader", F, .5, 56, function()
-    checkPassword()
+checkPassword()
+status("Hold SPACE to stay in bootloader", F, .5, 57, function()
     ::REFRESH::
     internet = proxy"in"
     updateCandidates()
@@ -416,7 +413,6 @@ status("Press ALT to stay in bootloader", F, .5, 56, function()
             proxy = drive[1]
             spaceTotal = proxy.spaceTotal()
             readOnly = proxy.isReadOnly()
-
             fill(1, centerY + 5, width, 3, " ")
             centrizedSet(centerY + 5, bootPreview(drive), F, WHITE)
             centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
@@ -471,7 +467,7 @@ status("Press ALT to stay in bootloader", F, .5, 56, function()
             centrizedSet(centerY + 4, "No drives available", BACKGROUND, WHITE)
             options:d()
         end
-        centrizedSet(height, "Use ← ↑ → to move cursor; Enter to do something; F5 to refresh")
+        centrizedSet(height, "Use ← ↑ → keys to move cursor; Enter to boot; CTRL+ALT+C for interrupt")
     end
 
     draw(1, 1)
@@ -492,8 +488,6 @@ status("Press ALT to stay in bootloader", F, .5, 56, function()
                 selectedElementsLine:d()
             elseif code == 28 then -- Enter
                 selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
-            elseif code == 63 then
-                goto REFRESH
             end
         elseif signalType == "component_added" or signalType == "component_removed" then
             goto REFRESH
