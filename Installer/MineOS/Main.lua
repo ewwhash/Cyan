@@ -126,7 +126,6 @@ end
 for i = 1, #userSettings.tasks do
     if userSettings.tasks[i].path == currentScript then
         table.remove(userSettings.tasks, i)
-        break
     end
 end
 
