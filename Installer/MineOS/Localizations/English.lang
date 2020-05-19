@@ -7,7 +7,6 @@
     compressing = "Compressing...",
     makingReadOnly = "Making EEPROM read only...",
     maximumPasswordLen = "Maximum password length is 12 characters",
-    lua52 = "This program requires Lua 5.3 or better, install it?",
     malformedSrc = "EEPROM src malformed, please, contact with developer",
     flash = "Flash",
     reboot = "Reboot",

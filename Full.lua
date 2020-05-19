@@ -146,7 +146,7 @@ end,
 function(address) -- addCandidate()
     local proxy = componentProxy(address)
 
-    if proxy then
+    if proxy and proxy.getLabel then
         bootCandidates[#bootCandidates + 1] = {
             proxy, proxy.getLabel() or "N/A", address
         }

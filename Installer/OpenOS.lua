@@ -50,14 +50,41 @@ local function QA(text)
 	end
 end
 
-if computer.getArchitecture() == "Lua 5.2" then
-	if QA("(This program requires Lua 5.3 or better. Install?)") then
-		computer.setArchitecture("Lua 5.3")
-	else
-		os.exit()
+local function currentScript()
+	local info
+	for runLevel = 0, math.huge do
+		info = debug.getinfo(runLevel)
+		if info then
+			if info.what == "main" then
+				return info.source:sub(2, -1)
+			end
+		else
+			error("Failed to get debug info for runlevel " .. runLevel)
+		end
 	end
 end
 
+do local pattern = ("\n%s"):format(currentScript())
+
+	if computer.getArchitecture() == "Lua 5.2" then
+		local file = io.open("/home/.shrc", "a")
+		file:write(pattern)
+		file:close()
+		computer.setArchitecture("Lua 5.3")
+	end
+
+	local file = io.open("/home/.shrc", "r")
+	local data = file:read("*a")
+	file:close()
+
+	if data:match(pattern) then
+		data = data:gsub(pattern, "")
+	end
+
+	file = io.open("/home/.shrc", "w")
+	file:write(data)
+	file:close()
+end
 
 if QA("Set password for EEPROM?") then
 	::PASSWORD::
