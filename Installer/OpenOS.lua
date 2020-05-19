@@ -74,7 +74,7 @@ readOnly = QA("Make EEPROM read only?")
 lzss = load(request("https://raw.githubusercontent.com/BrightYC/Other/master/lzss.lua"), "=lzss.lua")()
 print("Compressing...")
 
-local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercontent.com/BrightYC/Other/master/EEPROM/Installer/eeprom-minified.lua")
+local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercontent.com/BrightYC/Cyan/master/Minified.lua")
 	:gsub(
 		"%%(%w+)%%",
 		{

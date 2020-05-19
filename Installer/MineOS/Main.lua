@@ -74,7 +74,7 @@ local function main()
             workspace:draw()
         end
 
-        local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Other/master/EEPROM/Installer/eeprom-minified.lua")
+        local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Cyan/master/Minified.lua")
 
         if not data then
             GUI.alert(reason)
