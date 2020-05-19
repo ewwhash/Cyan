@@ -72,6 +72,9 @@ end
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", componentList"re"()
 local gpuSet, gpuSetBackground, gpuSetForeground, gpuSetPaletteColor, eepromSetData, eepromGetData = gpu.set, gpu.setBackground, gpu.setForeground, gpu.setPaletteColor, eeprom.setData, eeprom.getData
 
+COMPUTER.setBootAddress = eepromSetData
+COMPUTER.getBootAddress = eepromGetData
+
 if gpuSet and screen then
     gpuAndScreen, width, height = gpu.bind((screen)), gpu.maxResolution()
     centerY = height / 2
