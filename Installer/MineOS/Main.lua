@@ -3,7 +3,6 @@ local system = require("System")
 local component = require("Component")
 local filesystem = require("Filesystem")
 local internet = require("Internet")
-local lzss = require("LZSS")
 local eeprom = component.eeprom
 
 --------------------------------------------------------------------------------
@@ -63,6 +62,7 @@ flashButton.onTouch = function()
     passwordAtBootSwitch:remove()
     readOnlySwitch:remove()
     flashButton:remove()
+    local lzss = require("LZSS")
     local statusText
 
     local function status(text)
