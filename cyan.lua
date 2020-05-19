@@ -72,9 +72,6 @@ end
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", componentList"re"()
 local gpuSet, gpuSetBackground, gpuSetForeground, gpuSetPaletteColor, eepromSetData, eepromGetData = gpu.set, gpu.setBackground, gpu.setForeground, gpu.setPaletteColor, eeprom.setData, eeprom.getData
 
-COMPUTER.setBootAddress = eepromSetData
-COMPUTER.getBootAddress = eepromGetData
-
 if gpuSet and screen then
     gpuAndScreen, width, height = gpu.bind((screen)), gpu.maxResolution()
     centerY = height / 2
@@ -146,7 +143,7 @@ end,
 function(address) -- addCandidate()
     local proxy = componentProxy(address)
 
-    if proxy and proxy.getLabel then
+    if proxy and proxy.spaceTotal then
         bootCandidates[#bootCandidates + 1] = {
             proxy, proxy.getLabel() or "N/A", address
         }
@@ -243,17 +240,17 @@ end,
 function(drive, booting) -- bootPreview()
     address = cutText(drive[3], booting and 36 or 6)
     return drive[4] and ("Boot%s %s from %s (%s)")
-        :format(
-            booting and "ing" or "",
-            drive[4],
-            drive[2],
-            address
-        )
+    :format(
+        booting and "ing" or "",
+        drive[4],
+        drive[2],
+        address
+    )
     or ("Boot from %s (%s) is not available")
-        :format(
-            drive[2],
-            address
-        )
+    :format(
+        drive[2],
+        address
+    )
 end,
 
 function(drive) -- boot()

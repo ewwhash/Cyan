@@ -74,7 +74,7 @@ flashButton.onTouch = function()
         workspace:draw()
     end
 
-    local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Cyan/master/Minified.lua")
+    local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Cyan/master/for-compress.lua")
 
     if not data then
         GUI.alert(reason)
