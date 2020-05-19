@@ -118,7 +118,7 @@ end
 if computer.getArchitecture() == "Lua 5.2" then
     container.layout:addChild(GUI.text(1, 1, 0x878787, localization.lua52))
 
-    container.layout:addChild(GUI.roundedButton(1, 1, 10, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, "OK")).onTouch = function()
+    container.layout:addChild(GUI.roundedButton(1, 1, 18, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.reboot)).onTouch = function()
         computer.setArchitecture("Lua 5.3")
     end
 else
