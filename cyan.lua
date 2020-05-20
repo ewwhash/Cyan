@@ -1,4 +1,4 @@
-local password, passwordOnBoot, bootFiles, bootCandidates, keys, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height, ERROR = "1234", false, {"/init.lua", "/OS.lua"}, {}, {}, computer.pullSignal
+local password, passwordOnBoot, bootFiles, bootCandidates, keys, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height = "", false, {"/init.lua", "/OS.lua"}, {}, {}, computer.pullSignal
 
 computer.pullSignal = function(timeout, onHardInterrupt)
     local signal = {computerPullSignal(timeout)}
@@ -103,7 +103,7 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak, booting)
+local function status(text, title, wait, breakCode, onBreak, booting, beep)
     if gpu and screen then
         local lines, y, gpuSet = split(text), computer.uptime() + (wait or 0), gpu.set
         y = math.ceil(centerY - #lines / 2)
@@ -129,15 +129,18 @@ local function status(text, title, wait, breakCode, onBreak, booting)
                 gpu.set = gpuSet
             end
         end
+
+        if beep then
+            computer.beep(1000, .4)
+            computer.beep(1000, .4)
+        end
         
         return sleep(wait or 0, breakCode, onBreak)
     end
 end
 
-function ERROR(err)
-    computer.beep(1000, .4)
-    computer.beep(1000, .4)
-    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown) or error(err)
+local function ERROR(err)
+    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, true) or error(err)
 end
 
 local function addCandidate(address)
