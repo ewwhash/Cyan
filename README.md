@@ -18,7 +18,7 @@ This function is the basic Lua 5.3 interpreter with the following functions:
 * print(...) -- Very basic print.
 
 ## Internet boot
-This function loads the specified file by URL and executes it.
+This function downloads the specified file by URL and executes it.
 
 ## Rename/Format
 This functions renames/formats the selected file system.
