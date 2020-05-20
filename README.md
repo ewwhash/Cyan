@@ -3,7 +3,7 @@
 
 ## Installation
 
-For **OpenOS**, just run this command(You are need an internet card to do this):
+For **OpenOS**, just run this command(You are need an internet card to run this):
 
 ```
 wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua && installer.lua
