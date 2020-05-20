@@ -86,7 +86,7 @@ flashButton.onTouch = function()
             "%%(%w+)%%",
             {
                 pass = password or "",
-                passOnBoot = requestPasswordAtBoot and "1" or "F"}
+                passOnBoot = requestPasswordAtBoot and "true" or "false"}
             )
         ),
         true
