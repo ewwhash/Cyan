@@ -70,6 +70,7 @@ local gpu, eeprom, screen = proxy"gpu" or {}, proxy"eeprom", component.list"scre
 
 computer.setBootAddress = eeprom.setData
 computer.getBootAddress = eeprom.getData
+eeprom.get = eeprom.getData
 
 if gpu and screen then
     gpu.bind((screen))
@@ -290,7 +291,6 @@ local function boot(drive)
         if eeprom.getData() ~= drive[3] then
             eeprom.setData(drive[3])
         end
-        eeprom.get = eeprom.getData
         success, err = execute(data, "=" .. drive[4])
         if not success then
             ERROR(err)
@@ -421,7 +421,7 @@ local function bootLoader()
             centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
                 :format(
                     math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
-                    readOnly and "Read only" or"Read & Write",
+                    readOnly and "Read only" or "Read & Write",
                     spaceTotal < 2 ^ 20 and "FDD" or "HDD"
                 )
             )
@@ -431,7 +431,7 @@ local function bootLoader()
             end
 
             if readOnly then
-                options.s = #options.e
+                options.s = options.s > #options.e and #options.e or options.s
             else
                 options.e[correction] = {t = "Rename", a = function()
                     newLabel = input("New label: ", false, centerY + 7, true)

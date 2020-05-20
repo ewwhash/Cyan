@@ -29,6 +29,7 @@ For sure, password is stored in unencrypted form, i can't put true hash library,
 
 ## Images/Videos
 
+[![](https://img.youtube.com/vi/89K8mWFEJKw/0.jpg)](https://www.youtube.com/watch?v=89K8mWFEJKw)
 ![](https://i.imgur.com/WWiX2tQ.png)
 ![](https://i.imgur.com/6IxcZOW.png)
 ![](https://i.imgur.com/6QXw6LX.png)
