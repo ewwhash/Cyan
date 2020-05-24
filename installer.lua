@@ -68,22 +68,26 @@ do local pattern = ("\n%s"):format(currentScript())
 
 	if computer.getArchitecture() == "Lua 5.2" then
 		local file = io.open("/home/.shrc", "a")
-		file:write(pattern)
-		file:close()
+		if file then
+			file:write(pattern)
+			file:close()
+		end
 		computer.setArchitecture("Lua 5.3")
 	end
 
 	local file = io.open("/home/.shrc", "r")
-	local data = file:read("*a")
-	file:close()
+	if file then
+		local data = file:read("*a")
+		file:close()
 
-	if data:match(pattern) then
-		data = data:gsub(pattern, "")
+		if data:match(pattern) then
+			data = data:gsub(pattern, "")
+		end
+
+		file = io.open("/home/.shrc", "w")
+		file:write(data)
+		file:close()
 	end
-
-	file = io.open("/home/.shrc", "w")
-	file:write(data)
-	file:close()
 end
 
 if QA("Set password for EEPROM?") then
