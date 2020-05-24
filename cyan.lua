@@ -66,7 +66,7 @@ local function sleep(timeout, breakCode, onBreak)
     until computer.uptime() >= deadline
 end
 
-local gpu, eeprom, screen = proxy"gpu" or {}, proxy"eeprom", component.list"screen"()
+local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
 
 computer.setBootAddress = eeprom.setData
 computer.getBootAddress = eeprom.getData
@@ -348,7 +348,7 @@ end
 local function bootLoader()
     checkPassword()
     ::REFRESH::
-    internet = proxy"internet"
+    internet = proxy"et"
     updateCandidates()
     local env, signalType, code, data, options, drives, draw, drive, proxy, readOnly, newLabel, url, handle, chunk, correction, spaceTotal, _ = setmetatable({
         print = print,
@@ -422,7 +422,7 @@ local function bootLoader()
                 :format(
                     math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
                     readOnly and "Read only" or "Read & Write",
-                    spaceTotal < 2 ^ 20 and "FDD" or "HDD"
+                    spaceTotal < 2 ^ 20 and "FDD" or spaceTotal < 2 ^ 20 * 12 and "HDD" or "RAID"
                 )
             )
 
