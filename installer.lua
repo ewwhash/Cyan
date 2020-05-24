@@ -85,8 +85,10 @@ do local pattern = ("\n%s"):format(currentScript())
 		end
 
 		file = io.open("/home/.shrc", "w")
-		file:write(data)
-		file:close()
+		if file then
+			file:write(data)
+			file:close()
+		end
 	end
 end
 
