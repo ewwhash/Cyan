@@ -360,7 +360,7 @@ local function bootLoader()
 
     options = createElements({
         {t = "Power off", a = function() computer.shutdown() end},
-        {t = "Lua 5.3", a = function()
+        {t = "Lua", a = function()
             clear()
 
             ::LOOP::
