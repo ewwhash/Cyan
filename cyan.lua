@@ -1,12 +1,12 @@
-local password, passwordOnBoot, bootFiles, bootCandidates, keys, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height = "", false, {"/init.lua", "/OS.lua"}, {}, {}, computer.pullSignal
+local password, passwordOnBoot, bootFiles, bootCandidates, keys, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height = "", F, {"/init.lua", "/OS.lua"}, {}, {}, computer.pullSignal
 
 computer.pullSignal = function(timeout, onHardInterrupt)
     local signal = {computerPullSignal(timeout)}
 
     if signal[1] == "key_down" then
-        keys[signal[4]] = true
+        keys[signal[4]] = 1
     elseif signal[1] == "key_up" then
-        keys[signal[4]] = nil
+        keys[signal[4]] = F
     end
 
     if keys[29] and keys[56] and keys[46] then
@@ -28,16 +28,16 @@ local function proxy(componentType)
 end
 
 local function execute(code, stdin, env)
-    local chunk, err = load("return " .. code, stdin, false, env)
+    local chunk, err = load("return " .. code, stdin, F, env)
 
     if not chunk then
-        chunk, err = load(code, stdin, false, env)
+        chunk, err = load(code, stdin, F, env)
     end
 
     if chunk then
         return xpcall(chunk, debug.traceback)
     else
-        return false, err
+        return F, err
     end
 end
 
@@ -61,7 +61,7 @@ local function sleep(timeout, breakCode, onBreak)
             if onBreak then
                 onBreak()
             end
-            return true
+            return 1
         end
     until computer.uptime() >= deadline
 end
@@ -141,7 +141,7 @@ local function status(text, title, wait, breakCode, onBreak, booting, beep)
 end
 
 local function ERROR(err)
-    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, true) or error(err)
+    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, 1) or error(err)
 end
 
 local function addCandidate(address)
@@ -174,13 +174,13 @@ local function cutText(text, maxLength)
 end
 
 local function input(prefix, X, y, centrized, hide, lastInput)
-    local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", unicode.len(prefix), 1, true
+    local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", unicode.len(prefix), 1, 1
 
-    while true do
+    while 1 do
         signalType, _, char, code = computer.pullSignal(.5)
 
         if signalType == "interrupted" then
-            input = false
+            input = F
             break
         elseif signalType == "key_down" then
             if char >= 32 and unicode.len(prefixLen .. input) < width - prefixLen - 1 then
@@ -200,10 +200,10 @@ local function input(prefix, X, y, centrized, hide, lastInput)
                 cursorPos = unicode.len(lastInput) + 1
             elseif code == 208 and lastInput then
                 input = ""
-                cursorPos = true
+                cursorPos = 1
             end
 
-            cursorState = true
+            cursorState = 1
         elseif signalType == "clipboard" then
             input = unicode.sub(input, 1, cursorPos - 1) .. char .. unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + unicode.len(char)
@@ -231,7 +231,7 @@ local function print(...)
         text[i] = tostring(text[i])
     end
 
-    lines = split(table.concat(text, "    "), true)
+    lines = split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
         gpu.copy(1, 1, width, height - 1, 0, -1)
@@ -242,7 +242,7 @@ end
 
 local function checkPassword()
     if #password > 0 and not passwordChecked then
-        local passwordFromUser = input("Password: ", false, centerY, 1, 1)
+        local passwordFromUser = input("Password: ", F, centerY, 1, 1)
 
         if not passwordFromUser then
             computer.shutdown()
@@ -250,7 +250,7 @@ local function checkPassword()
             ERROR("Access denied")
         end
 
-        passwordChecked = true
+        passwordChecked = 1
     end
 end
 
@@ -287,7 +287,7 @@ local function boot(drive)
         if passwordOnBoot then
             checkPassword()
         end
-        status(bootPreview(drive, true), false, .5, false, false, true)
+        status(bootPreview(drive, 1), F, .5, F, F, 1)
         if eeprom.getData() ~= drive[3] then
             eeprom.setData(drive[3])
         end
@@ -296,7 +296,7 @@ local function boot(drive)
             ERROR(err)
         end
 
-        return true
+        return 1
     end
 end
 
@@ -329,7 +329,7 @@ local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDra
             x = centrize(elementsAndBorderLength)
 
             for i = 1, #SELF.e do
-                selectedElement, element = SELF.s == i and true, SELF.e[i]
+                selectedElement, element = SELF.s == i and 1, SELF.e[i]
                 elementLength = unicode.len(element.t)
 
                 if selectedElement and not withoutBorder then
@@ -354,7 +354,7 @@ local function bootLoader()
         print = print,
         proxy = proxy,
         os = {
-            sleep = function(timeout) sleep(timeout, false, function() error("interrupted") end) end
+            sleep = function(timeout) sleep(timeout, F, function() error("interrupted") end) end
         }
     }, {__index = _G})
 
@@ -364,7 +364,7 @@ local function bootLoader()
             clear()
 
             ::LOOP::
-                data = input("> ", 1, height, false, false, data)
+                data = input("> ", 1, height, F, F, data)
 
                 if data then
                     print("> " .. data)
@@ -372,15 +372,15 @@ local function bootLoader()
                     print(select(2, execute(data, "=stdin", env)))
                     goto LOOP
                 end
-            draw(false, false, true, true)
+            draw(F, F, 1, 1)
         end},
     }, centerY + 2, 1, function()
         selectedElementsLine = drives
-        draw(true, true, false, false)
+        draw(1, 1, F, F)
     end)
 
     options.e[#options.e + 1] = internet and {t = "Internet boot", a = function()
-        url, data = input("URL: ", false, centerY + 7, true), ""
+        url, data = input("URL: ", F, centerY + 7, 1), ""
 
         if url and url ~= "" then
             handle, chunk = internet.request(url), ""
@@ -403,21 +403,21 @@ local function bootLoader()
             end
         end
 
-        draw(false, false, true, true)
+        draw(F, F, 1, 1)
     end}
 
     if #bootCandidates > 0 then
         correction = #options.e + 1
         drives = createElements({}, centerY - 2, 2, function()
             selectedElementsLine = options
-            draw(false, false, true, true)
+            draw(F, F, 1, 1)
         end, function(SELF)
             drive = bootCandidates[SELF.s]
             proxy = drive[1]
             spaceTotal = proxy.spaceTotal()
             readOnly = proxy.isReadOnly()
             fill(1, centerY + 5, width, 3, " ")
-            centrizedSet(centerY + 5, bootPreview(drive), false, 0xFFFFFF)
+            centrizedSet(centerY + 5, bootPreview(drive), F, 0xFFFFFF)
             centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
                 :format(
                     math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
@@ -427,14 +427,14 @@ local function bootLoader()
             )
 
             for i = correction, #options.e do
-                options.e[i] = nil
+                options.e[i] = F
             end
 
             if readOnly then
                 options.s = options.s > #options.e and #options.e or options.s
             else
                 options.e[correction] = {t = "Rename", a = function()
-                    newLabel = input("New label: ", false, centerY + 7, true)
+                    newLabel = input("New label: ", F, centerY + 7, 1)
 
                     if newLabel and newLabel ~= "" then
                         pcall(proxy.setLabel, newLabel)
@@ -442,13 +442,13 @@ local function bootLoader()
                         drives.e[SELF.s].t = cutText(newLabel, 6)
                     end
 
-                    drives:d(true, true)
+                    drives:d(1, 1)
                     options:d()
                 end}
-                options.e[#options.e + 1] = {t = "Format", a = function() drive[4] = false proxy.remove("/") drives:d(true, true) options:d() end}
+                options.e[#options.e + 1] = {t = "Format", a = function() drive[4] = F proxy.remove("/") drives:d(1, 1) options:d() end}
             end
 
-            options:d(true, true)
+            options:d(1, 1)
         end)
 
         for i = 1, #bootCandidates do
@@ -474,7 +474,7 @@ local function bootLoader()
         centrizedSet(height, "Use ← ↑ → keys to move cursor; Enter to boot; CTRL+ALT+C to shutdown")
     end
 
-    draw(true, true)
+    draw(1, 1)
 
     ::LOOP::
         signalType, _, _, code = computer.pullSignal(math.huge, computer.shutdown)
@@ -501,7 +501,7 @@ end
 
 computer.beep(1000, .2)
 updateCandidates()
-status("Hold CTRL to stay in bootloader", false, .5, 29, bootLoader)
+status("Hold CTRL to stay in bootloader", F, .5, 29, bootLoader)
 for i = 1, #bootCandidates do
     if boot(bootCandidates[i]) then
         computer.shutdown()
