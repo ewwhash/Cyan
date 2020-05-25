@@ -164,7 +164,7 @@ local function updateCandidates()
     bootCandidates = {}
     addCandidate(eeprom.getData())
 
-    for filesystem in pairs(component.list("sy")) do
+    for filesystem in pairs(component.list"sy") do
         addCandidate((eeprom.getData() ~= filesystem and computer.tmpAddress() ~= filesystem) and filesystem or "")
     end
 end
@@ -247,7 +247,7 @@ local function checkPassword()
         if not passwordFromUser then
             computer.shutdown()
         elseif passwordFromUser ~= password then
-            ERROR("Access denied")
+            ERROR"Access denied"
         end
 
         passwordChecked = 1
@@ -354,7 +354,7 @@ local function bootLoader()
         print = print,
         proxy = proxy,
         os = {
-            sleep = function(timeout) sleep(timeout, F, function() error("interrupted") end) end
+            sleep = function(timeout) sleep(timeout, F, function() error"interrupted" end) end
         }
     }, {__index = _G})
 
@@ -386,7 +386,7 @@ local function bootLoader()
             handle, chunk = internet.request(url), ""
 
             if handle then
-                status("Downloading...")
+                status"Downloading..."
                 ::LOOP::
 
                 chunk = handle.read()
@@ -493,7 +493,7 @@ local function bootLoader()
             elseif code == 28 then -- Enter
                 selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
             end
-        elseif signalType == "component_added" or signalType == "component_removed" then
+        elseif signalType:match("component") then
             goto REFRESH
         end
     goto LOOP
@@ -510,5 +510,5 @@ end
 if gpu and screen then
     bootLoader()
 else
-    error("No bootable medium found")
+    error"No bootable medium found"
 end
