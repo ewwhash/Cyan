@@ -164,7 +164,7 @@ local function updateCandidates()
     bootCandidates = {}
     addCandidate(eeprom.getData())
 
-    for filesystem in pairs(component.list("filesystem")) do
+    for filesystem in pairs(component.list("sy")) do
         addCandidate((eeprom.getData() ~= filesystem and computer.tmpAddress() ~= filesystem) and filesystem or "")
     end
 end
@@ -397,7 +397,7 @@ local function bootLoader()
                 end
 
                 handle.close()
-                status(select(2, execute(data, "=internet boot")) or "is empty", "Internet boot result", math.huge, 0)
+                status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot result", math.huge, 0)
             else
                 status("Malformed URL", "Internet boot result", math.huge, 0)
             end
