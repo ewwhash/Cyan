@@ -112,7 +112,7 @@ local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercont
 		"%%(%w+)%%",
 		{
 			pass = password or "",
-			passOnBoot = requestPasswordAtBoot and "true" or "false"}
+			passOnBoot = requestPasswordAtBoot and "1" or "F"}
 		)
 	),
 	true
