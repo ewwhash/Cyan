@@ -77,7 +77,7 @@ flashButton.onTouch = function()
     local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Cyan/master/for-compress.lua")
 
     if not data then
-        GUI.alert(reason)
+        error(reason)
     end
 
     status(localization.compressing)
