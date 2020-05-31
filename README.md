@@ -24,7 +24,7 @@ This function downloads the specified file by URL and executes it.
 This functions renames/formats the selected file system.
 
 ## Pasword access
-Password access for EEPROM without request an password at boot is useless(Password gives weak security, because any player can reflsash EEPROM/format all drives or something. For very strong security use computer.addUser()) but both they is not bad.  
+Password access for EEPROM without request an password at boot is useless(Password gives weak security, because any player can reflsash EEPROM/format all drives or something. For very strong security use computer.addUser()) but both he is not bad.  
 For sure, password is stored in unencrypted form, i can't put true hash library, i have no space for this. But, password is protected from reading on the computer that has EEPROM installed, eeprom is redirecting eeprom.get() call to eeprom.getData(). So, if you do not give your EEPROM to someone, you can not worry about security.
 
 ## Images/Videos
