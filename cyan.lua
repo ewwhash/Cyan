@@ -356,7 +356,7 @@ local function bootLoader()
         os = {
             sleep = function(timeout) sleep(timeout, F, function() error"interrupted" end) end
         },
-        read = function() print(" ") local data = input("", 1, height - 1) set(1, height - 1, data or "") return data end
+        read = function() gpu.copy(1, 1, width, height - 1, 0, -1) local data = input("", 1, height - 1) set(1, height - 1, data or "") return data end
     }, {__index = _G})
 
     options = createElements({

@@ -7,7 +7,8 @@
     compressing = "Compressing...",
     makingReadOnly = "Making EEPROM read only...",
     maximumPasswordLen = "Maximum password length is 12 characters",
-    malformedSrc = "EEPROM src malformed, please, contact with developer",
+    ascii = "Password doesn't not to contain non-ascii symbols",
+    malformedSrc = "EEPROM src malformed, please contact with developer",
     flash = "Flash",
     reboot = "Reboot",
     done = "Done!"

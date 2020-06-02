@@ -23,6 +23,10 @@ local passwordAtBootSwitch = container.layout:addChild(GUI.switchAndLabel(1, 4, 
 local flashButton = container.layout:addChild(GUI.roundedButton(1, 1, 17, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.flash))
 
 passwordInput.validator = function(text)
+    if unicode.len(text) ~= #text then
+        gui.alert(localization.ascii)
+    end
+
     if unicode.len(text) <= 12 then
         return true
     else

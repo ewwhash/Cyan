@@ -100,6 +100,10 @@ if QA("Set password for EEPROM?") then
 		print("\nMaximum password length is 12 characters")
 		goto PASSWORD
 	end
+	if unicode.len(password) ~= #password then
+		print("\nPassword doesn't not to contain non-ascii characters")
+		goto PASSWORD
+	end
 	requestPasswordAtBoot = QA("\nRequest password at boot?")
 end
 
@@ -117,18 +121,17 @@ local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercont
 	),
 	true
 )
+_G.suka  = compressed
 
 if load(compressed) then
-	io.stderr:write("EEPROM src malformed, please, contact with developer")
-	os.exit()
+	print("Flashing...")
+	eeprom.set(compressed)
+	eeprom.setLabel("Cyan BIOS")
+	if readOnly then
+		print("Making EEPROM read only...")
+		eeprom.makeReadonly(eeprom.getChecksum())
+	end
+	computer.shutdown(true)
+else
+	io.stderr:write("EEPROM src malformed, please contact with developer")
 end
-
-print("Flashing...")
-eeprom.set(compressed)
-eeprom.setLabel("Cyan BIOS")
-if readOnly then
-	print("Making EEPROM read only...")
-	eeprom.makeReadonly(eeprom.getChecksum())
-end
-
-computer.shutdown(true)
