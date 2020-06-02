@@ -484,11 +484,11 @@ local function bootLoader()
                 selectedElementsLine.k()
             elseif code == 208 then -- Down
                 selectedElementsLine.k()
-            elseif code == 203 and selectedElementsLine.s > 1 then -- Left
-                selectedElementsLine.s = selectedElementsLine.s - 1
+            elseif code == 203 then -- Left
+                selectedElementsLine.s = selectedElementsLine.s > 1 and selectedElementsLine.s - 1 or #selectedElementsLine.e
                 selectedElementsLine:d()
-            elseif code == 205 and selectedElementsLine.s < #selectedElementsLine.e then -- Right
-                selectedElementsLine.s = selectedElementsLine.s + 1
+            elseif code == 205 then -- Right
+                selectedElementsLine.s = selectedElementsLine.s < #selectedElementsLine.e and selectedElementsLine.s + 1 or 1
                 selectedElementsLine:d()
             elseif code == 28 then -- Enter
                 selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
