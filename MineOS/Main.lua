@@ -24,7 +24,7 @@ local flashButton = container.layout:addChild(GUI.roundedButton(1, 1, 17, 1, 0xF
 
 passwordInput.validator = function(text)
     if unicode.len(text) ~= #text then
-        gui.alert(localization.ascii)
+        GUI.alert(localization.ascii)
     end
 
     if unicode.len(text) <= 12 then
