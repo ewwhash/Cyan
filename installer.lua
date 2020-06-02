@@ -118,6 +118,11 @@ local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercont
 	true
 )
 
+if load(compressed) then
+	io.stderr:write("EEPROM src malformed, please, contact with developer")
+	os.exit()
+end
+
 print("Flashing...")
 eeprom.set(compressed)
 eeprom.setLabel("Cyan BIOS")
