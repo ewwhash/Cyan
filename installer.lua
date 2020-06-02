@@ -97,11 +97,11 @@ if QA("Set password for EEPROM?") then
 	io.write("Password: ")
 	password = read("*")
 	if unicode.len(password) > 12 then
-		print("\nMaximum password length is 12 characters")
+		io.stderr:write("\nMaximum password length is 12 characters\n")
 		goto PASSWORD
 	end
 	if unicode.len(password) ~= #password then
-		print("\nPassword doesn't not to contain non-ascii characters")
+		io.stderr:write("\nPassword doesn't not to contain non-ascii characters\n")
 		goto PASSWORD
 	end
 	requestPasswordAtBoot = QA("\nRequest password at boot?")
