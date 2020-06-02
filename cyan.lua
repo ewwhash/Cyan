@@ -1,6 +1,6 @@
-local password, passwordOnBoot, bootFiles, bootCandidates, keys, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height = "", F, {"/init.lua", "/OS.lua"}, {}, {}, computer.pullSignal
+local password, passwordOnBoot, bootFiles, bootCandidates, keys, Unicode, Computer, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height, internet = "", F, {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer, computer.pullSignal
 
-computer.pullSignal = function(timeout, onHardInterrupt)
+Computer.pullSignal = function(timeout, onHardInterrupt)
     local signal = {computerPullSignal(timeout)}
 
     if signal[1] == "key_down" then
@@ -52,10 +52,10 @@ local function split(text, tabulate)
 end
 
 local function sleep(timeout, breakCode, onBreak)
-    local deadline, signalType, code, _ = computer.uptime() + (timeout or math.huge)
+    local deadline, signalType, code, _ = Computer.uptime() + (timeout or math.huge)
 
     repeat
-        signalType, _, _, code = computer.pullSignal(deadline - computer.uptime())
+        signalType, _, _, code = Computer.pullSignal(deadline - Computer.uptime())
 
         if signalType == "interrupted" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
             if onBreak then
@@ -63,13 +63,13 @@ local function sleep(timeout, breakCode, onBreak)
             end
             return 1
         end
-    until computer.uptime() >= deadline
+    until Computer.uptime() >= deadline
 end
 
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
 
-computer.setBootAddress = eeprom.setData
-computer.getBootAddress = eeprom.getData
+Computer.setBootAddress = eeprom.setData
+Computer.getBootAddress = eeprom.getData
 eeprom.get = eeprom.getData
 
 if gpu and screen then
@@ -101,12 +101,12 @@ local function centrize(len)
 end
 
 local function centrizedSet(y, text, background, foreground)
-    set(centrize(unicode.len(text)), y, text, background, foreground)
+    set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
 local function status(text, title, wait, breakCode, onBreak, booting, beep)
     if gpu and screen then
-        local lines, y, gpuSet = split(text), computer.uptime() + (wait or 0), gpu.set
+        local lines, y, gpuSet = split(text), Computer.uptime() + (wait or 0), gpu.set
         y = math.ceil(centerY - #lines / 2)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -132,8 +132,8 @@ local function status(text, title, wait, breakCode, onBreak, booting, beep)
         end
 
         if beep then
-            computer.beep(1000, .4)
-            computer.beep(1000, .4)
+            Computer.beep(1000, .4)
+            Computer.beep(1000, .4)
         end
         
         return sleep(wait or 0, breakCode, onBreak)
@@ -141,7 +141,7 @@ local function status(text, title, wait, breakCode, onBreak, booting, beep)
 end
 
 local function ERROR(err)
-    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, 1) or error(err)
+    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1) or error(err)
 end
 
 local function addCandidate(address)
@@ -165,39 +165,39 @@ local function updateCandidates()
     addCandidate(eeprom.getData())
 
     for filesystem in pairs(component.list"sy") do
-        addCandidate((eeprom.getData() ~= filesystem and computer.tmpAddress() ~= filesystem) and filesystem or "")
+        addCandidate((eeprom.getData() ~= filesystem and Computer.tmpAddress() ~= filesystem) and filesystem or "")
     end
 end
 
 local function cutText(text, maxLength)
-    return unicode.len(text) > maxLength and unicode.sub(text, 1, maxLength) .. "…" or text
+    return Unicode.len(text) > maxLength and Unicode.sub(text, 1, maxLength) .. "…" or text
 end
 
 local function input(prefix, X, y, centrized, hide, lastInput)
-    local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", unicode.len(prefix), 1, 1
+    local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
     while 1 do
-        signalType, _, char, code = computer.pullSignal(.5)
+        signalType, _, char, code = Computer.pullSignal(.5)
 
         if signalType == "interrupted" then
             input = F
             break
         elseif signalType == "key_down" then
-            if char >= 32 and unicode.len(prefixLen .. input) < width - prefixLen - 1 then
-                input = unicode.sub(input, 1, cursorPos - 1) .. unicode.char(char) .. unicode.sub(input, cursorPos, -1)
+            if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
+                input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
                 cursorPos = cursorPos + 1
             elseif char == 8 and #input > 0 then
-                input = unicode.sub(unicode.sub(input, 1, cursorPos - 1), 1, -2) .. unicode.sub(input, cursorPos, -1)
+                input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
                 cursorPos = cursorPos - 1
             elseif char == 13 then
                 break
             elseif code == 203 and cursorPos > 1 then
                 cursorPos = cursorPos - 1
-            elseif code == 205 and cursorPos <= unicode.len(input) then
+            elseif code == 205 and cursorPos <= Unicode.len(input) then
                 cursorPos = cursorPos + 1
             elseif code == 200 and lastInput then
                 input = lastInput
-                cursorPos = unicode.len(lastInput) + 1
+                cursorPos = Unicode.len(lastInput) + 1
             elseif code == 208 and lastInput then
                 input = ""
                 cursorPos = 1
@@ -205,16 +205,16 @@ local function input(prefix, X, y, centrized, hide, lastInput)
 
             cursorState = 1
         elseif signalType == "clipboard" then
-            input = unicode.sub(input, 1, cursorPos - 1) .. char .. unicode.sub(input, cursorPos, -1)
-            cursorPos = cursorPos + unicode.len(char)
+            input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
+            cursorPos = cursorPos + Unicode.len(char)
         elseif signalType ~= "key_up" then
             cursorState = not cursorState
         end
 
-        x = centrized and centrize(unicode.len(input) + prefixLen) or X
+        x = centrized and centrize(Unicode.len(input) + prefixLen) or X
         cursorX = x + prefixLen + cursorPos - 1
         fill(1, y, width, 1, " ")
-        set(x, y, prefix .. (hide and ("*"):rep(unicode.len(input)) or input), 0x002b36, 0xFFFFFF)
+        set(x, y, prefix .. (hide and ("*"):rep(Unicode.len(input)) or input), 0x002b36, 0xFFFFFF)
         if cursorX <= width then
             set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
@@ -245,7 +245,7 @@ local function checkPassword()
         local passwordFromUser = input("Password: ", F, centerY, 1, 1)
 
         if not passwordFromUser then
-            computer.shutdown()
+            Computer.shutdown()
         elseif passwordFromUser ~= password then
             ERROR"Access denied"
         end
@@ -282,7 +282,7 @@ local function boot(drive)
             goto LOOP
         end
 
-        computer.pullSignal = computerPullSignal
+        Computer.pullSignal = computerPullSignal
         drive[1].close(handle)
         if passwordOnBoot then
             checkPassword()
@@ -322,7 +322,7 @@ local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDra
             end
 
             for i = 1, #SELF.e do
-                elementsAndBorderLength = elementsAndBorderLength + unicode.len(SELF.e[i].t) + borderSpaces
+                elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
             end
 
             elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
@@ -330,7 +330,7 @@ local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDra
 
             for i = 1, #SELF.e do
                 selectedElement, element = SELF.s == i and 1, SELF.e[i]
-                elementLength = unicode.len(element.t)
+                elementLength = Unicode.len(element.t)
 
                 if selectedElement and not withoutBorder then
                     fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
@@ -355,11 +355,12 @@ local function bootLoader()
         proxy = proxy,
         os = {
             sleep = function(timeout) sleep(timeout, F, function() error"interrupted" end) end
-        }
+        },
+        read = function() print(" ") local data = input("", 1, height - 1) set(1, height - 1, data or "") return data end
     }, {__index = _G})
 
     options = createElements({
-        {t = "Power off", a = function() computer.shutdown() end},
+        {t = "Power off", a = function() Computer.shutdown() end},
         {t = "Lua", a = function()
             clear()
 
@@ -477,7 +478,7 @@ local function bootLoader()
     draw(1, 1)
 
     ::LOOP::
-        signalType, _, _, code = computer.pullSignal(math.huge, computer.shutdown)
+        signalType, _, _, code = Computer.pullSignal(math.huge, Computer.shutdown)
 
         if signalType == "key_down" then
             if code == 200 then -- Up
@@ -499,12 +500,12 @@ local function bootLoader()
     goto LOOP
 end
 
-computer.beep(1000, .2)
+Computer.beep(1000, .2)
 updateCandidates()
 status("Hold CTRL to stay in bootloader", F, .5, 29, bootLoader)
 for i = 1, #bootCandidates do
     if boot(bootCandidates[i]) then
-        computer.shutdown()
+        Computer.shutdown()
     end
 end
 if gpu and screen then
