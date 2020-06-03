@@ -15,6 +15,7 @@ This function is the basic Lua 5.3 interpreter with the following functions:
 
 * os.sleep([timeout: number]) -- Basic delay (You can interrupt this via CTRL+ALT+C).
 * proxy(componentName: string): component proxy or nil -- Like component.eeprom in OpenOS/MineOS.
+* read(maskSymbol: string or nil, lastInput: string or nil): string or nil -- Very basic read, like io.read()
 * print(...) -- Very basic print.
 
 ## Internet boot
