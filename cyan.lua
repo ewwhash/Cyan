@@ -1,7 +1,7 @@
-local password, passwordOnBoot, bootFiles, bootCandidates, keys, Unicode, Computer, computerPullSignal, passwordChecked, selectedElementsLine, centerY, width, height, internet = "", F, {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer, computer.pullSignal
+local password, passwordOnBoot, bootFiles, bootCandidates, keys, Unicode, Computer, passwordChecked, selectedElementsLine, centerY, width, height, internet = "", F, {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
 
-Computer.pullSignal = function(timeout, onHardInterrupt)
-    local signal = {computerPullSignal(timeout)}
+local function pullSignal(timeout, onHardInterrupt)
+    local signal = {Computer.pullSignal(timeout)}
 
     if signal[1] == "key_down" then
         keys[signal[4]] = 1
@@ -55,7 +55,7 @@ local function sleep(timeout, breakCode, onBreak)
     local deadline, signalType, code, _ = Computer.uptime() + (timeout or math.huge)
 
     repeat
-        signalType, _, _, code = Computer.pullSignal(deadline - Computer.uptime())
+        signalType, _, _, code = pullSignal(deadline - Computer.uptime())
 
         if signalType == "interrupted" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
             if onBreak then
@@ -177,7 +177,7 @@ local function input(prefix, X, y, centrized, hide, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
     while 1 do
-        signalType, _, char, code = Computer.pullSignal(.5)
+        signalType, _, char, code = pullSignal(.5)
 
         if signalType == "interrupted" then
             input = F
@@ -282,7 +282,6 @@ local function boot(drive)
             goto LOOP
         end
 
-        Computer.pullSignal = computerPullSignal
         drive[1].close(handle)
         if passwordOnBoot then
             checkPassword()
@@ -356,7 +355,7 @@ local function bootLoader()
         os = {
             sleep = function(timeout) sleep(timeout, F, function() error"interrupted" end) end
         },
-        read = function(hide, lastInput) gpu.copy(1, 1, width, height - 1, 0, -1) local data = input("", 1, height - 1, F, hide, lastInput) set(1, height - 1, data or "") return data end
+        read = function(hide, lastInput) print(" ") local data = input("", 1, height - 1, F, hide, lastInput) set(1, height - 1, data or "") return data end
     }, {__index = _G})
 
     options = createElements({
@@ -478,7 +477,7 @@ local function bootLoader()
     draw(1, 1)
 
     ::LOOP::
-        signalType, _, _, code = Computer.pullSignal(math.huge, Computer.shutdown)
+        signalType, _, _, code = pullSignal(math.huge, Computer.shutdown)
 
         if signalType == "key_down" then
             if code == 200 then -- Up
