@@ -104,7 +104,7 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak, booting, beep)
+local function status(text, title, wait, breakCode, onBreak, booting, err)
     if gpu and screen then
         local lines, y, gpuSet = split(text), Computer.uptime() + (wait or 0), gpu.set
         y = math.ceil(centerY - #lines / 2)
@@ -131,7 +131,7 @@ local function status(text, title, wait, breakCode, onBreak, booting, beep)
             end
         end
 
-        if beep then
+        if err then
             Computer.beep(1000, .4)
             Computer.beep(1000, .4)
         end
