@@ -2,14 +2,16 @@ local component = require("component")
 local computer = require("computer")
 local term = require("term")
 local unicode = require("unicode")
+local serialization = require("serialization")
 
 if not component.isAvailable("internet") then
 	io.stderr:write("This program requires an internet card to run.")
 	os.exit()
 end
 
+local FREESPACE = 77
 local eeprom, internet = component.eeprom, component.internet
-local password, requestPasswordAtBoot, readOnly, lzss = false, false, false
+local users, checkUserOnBoot, readOnly, lzss = false, false, false
 
 local function request(url)
 	local handle, data, chunk = internet.request(url, nil, {["user-agent"]="Chrome/81.0.4044.129"}), ""
@@ -92,19 +94,23 @@ do local pattern = ("\n%s"):format(currentScript())
 	end
 end
 
-if QA("Set password for EEPROM?") then
-	::PASSWORD::
-	io.write("Password: ")
-	password = read("*")
-	if unicode.len(password) > 12 then
-		io.stderr:write("\nMaximum password length is 12 characters\n")
-		goto PASSWORD
+if QA("Create whitelist for bootloader access?") then
+	::LOOP::
+	io.write('Whitelist example: {"Jako", "Berserk29", "Elds01", "svchost2"}')
+	io.write("Whitelist: ")
+	users = read("*")
+	local serialized, err = serialization.serialize(users)
+
+	if serialized then
+		if #serialized > FREESPACE then
+			io.stderr:write(("\nMaximum whitelist size is %s and you used %s\n"):format(FREESPACE, #serialized))
+			goto LOOP
+		end
+	else
+		goto LOOP
+		io.stderr:write(err)
 	end
-	if unicode.len(password) ~= #password then
-		io.stderr:write("\nPassword doesn't not to contain non-ascii characters\n")
-		goto PASSWORD
-	end
-	requestPasswordAtBoot = QA("\nRequest password at boot?")
+	checkUserOnBoot = QA("\nRequest user touch on boot?")
 end
 
 readOnly = QA("Make EEPROM read only?")
@@ -115,8 +121,8 @@ local compressed = lzss.getSXF(lzss.compress(request("https://raw.githubusercont
 	:gsub(
 		"%%(%w+)%%",
 		{
-			pass = password or "",
-			passOnBoot = requestPasswordAtBoot and "1" or "F"}
+			users = users or "{}",
+			checkUserOnBoot = checkUserOnBoot and "1" or "F"}
 		)
 	),
 	true

@@ -1,25 +1,19 @@
-local password, passwordOnBoot, bootFiles, bootCandidates, keys, Unicode, Computer, passwordChecked, selectedElementsLine, centerY, width, height, internet = "", F, {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
 
-local function pullSignal(timeout, onHardInterrupt)
-    local signal = {Computer.pullSignal(timeout)}
+local function pullSignal(timeout)
+    local signal = {Computer.pullSignal(timeout or math.huge)}
 
-    if signal[1] == "key_down" then
-        keys[signal[4]] = 1
-    elseif signal[1] == "key_up" then
-        keys[signal[4]] = F
+    if #signal > 0 and users.n > 0 and ((signal[1]:match("key") and not users[signal[5]]) or (signal[1]:match("clip") and not users[signal[4]])) then
+        return {""}
     end
 
-    if keys[29] and keys[56] and keys[46] then
-        if onHardInterrupt then
-            onHardInterrupt()
-        end
+    key[signal[4] or ""] = signal[1] == "key_down" and 1
 
-        return "interrupted"
-    elseif keys[29] and keys[32] then
-        return "interrupted"
-    else
-        return table.unpack(signal)
+    if key[29] and (key[56] and key[46] or key[32]) then
+        return "F"
     end
+
+    return table.unpack(signal)
 end
 
 local function proxy(componentType)
@@ -57,7 +51,7 @@ local function sleep(timeout, breakCode, onBreak)
     repeat
         signalType, _, _, code = pullSignal(deadline - Computer.uptime())
 
-        if signalType == "interrupted" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
+        if signalType == "F" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
             if onBreak then
                 onBreak()
             end
@@ -67,10 +61,22 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
-
+local eepromData, setData = eeprom.getData(), eeprom.setData
+eeprom.setData = function(data)
+    eepromData = eepromData:match("[a-f-0-9]+") and eepromData:gsub("[a-f-0-9]+", data)
+    setData(eepromData)
+end
+eeprom.getData = function()
+    return eepromData:match("[a-f-0-9]+") or eepromData
+end
 Computer.setBootAddress = eeprom.setData
 Computer.getBootAddress = eeprom.getData
-eeprom.get = eeprom.getData
+users = select(2, pcall(load("return " .. (eepromData:match("#(.+)*"))))) or {}
+checkUserOnBoot = eepromData:match("*")
+users.n = #users
+for i = 1, #users do
+    users[users[i]], users[i] = 1, F
+end
 
 if gpu and screen then
     gpu.bind((screen))
@@ -147,7 +153,7 @@ end
 local function addCandidate(address)
     local proxy = component.proxy(address)
 
-    if proxy and proxy.spaceTotal then
+    if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
         bootCandidates[#bootCandidates + 1] = {
             proxy, proxy.getLabel() or "N/A", address
         }
@@ -165,7 +171,7 @@ local function updateCandidates()
     addCandidate(eeprom.getData())
 
     for filesystem in pairs(component.list"sy") do
-        addCandidate((eeprom.getData() ~= filesystem and Computer.tmpAddress() ~= filesystem) and filesystem or "")
+        addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
     end
 end
 
@@ -173,13 +179,13 @@ local function cutText(text, maxLength)
     return Unicode.len(text) > maxLength and Unicode.sub(text, 1, maxLength) .. "…" or text
 end
 
-local function input(prefix, X, y, centrized, hide, lastInput)
+local function input(prefix, X, y, centrized, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
     while 1 do
         signalType, _, char, code = pullSignal(.5)
 
-        if signalType == "interrupted" then
+        if signalType == "F" then
             input = F
             break
         elseif signalType == "key_down" then
@@ -204,7 +210,7 @@ local function input(prefix, X, y, centrized, hide, lastInput)
             end
 
             cursorState = 1
-        elseif signalType == "clipboard" then
+        elseif signalType:match("clip") then
             input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + Unicode.len(char)
         elseif signalType ~= "key_up" then
@@ -214,7 +220,7 @@ local function input(prefix, X, y, centrized, hide, lastInput)
         x = centrized and centrize(Unicode.len(input) + prefixLen) or X
         cursorX = x + prefixLen + cursorPos - 1
         fill(1, y, width, 1, " ")
-        set(x, y, prefix .. (hide and ("*"):rep(Unicode.len(input)) or input), 0x002b36, 0xFFFFFF)
+        set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
         if cursorX <= width then
             set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
@@ -240,20 +246,6 @@ local function print(...)
     end
 end
 
-local function checkPassword()
-    if #password > 0 and not passwordChecked then
-        local passwordFromUser = input("Password: ", F, centerY, 1, 1)
-
-        if not passwordFromUser then
-            Computer.shutdown()
-        elseif passwordFromUser ~= password then
-            ERROR"Access denied"
-        end
-
-        passwordChecked = 1
-    end
-end
-
 local function bootPreview(drive, booting)
     address = cutText(drive[3], booting and 36 or 6)
     return drive[4] and ("Boot%s %s from %s (%s)")
@@ -272,7 +264,7 @@ end
 
 local function boot(drive)
     if drive[4] then
-        local handle, data, chunk, success, err = drive[1].open(drive[4], "r"), ""
+        local handle, data, chunk, success, err, boot = drive[1].open(drive[4], "r"), ""
 
         ::LOOP::
         chunk = drive[1].read(handle, math.huge)
@@ -283,19 +275,21 @@ local function boot(drive)
         end
 
         drive[1].close(handle)
-        if passwordOnBoot then
-            checkPassword()
-        end
-        status(bootPreview(drive, 1), F, .5, F, F, 1)
-        if eeprom.getData() ~= drive[3] then
-            eeprom.setData(drive[3])
-        end
-        success, err = execute(data, "=" .. drive[4])
-        if not success then
-            ERROR(err)
+
+        boot = function()
+            status(bootPreview(drive, 1), F, .5, F, F, 1)
+            if eeprom.getData() ~= drive[3] then
+                eeprom.setData(drive[3])
+            end
+            success, err = execute(data, "=" .. drive[4])
+            if not success then
+                ERROR(err)
+            end
+
+            return 1
         end
 
-        return 1
+        data = checkUserOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
     end
 end
 
@@ -345,7 +339,7 @@ local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDra
 end
 
 local function bootLoader()
-    checkPassword()
+    userChecked = 1
     ::REFRESH::
     internet = proxy"et"
     updateCandidates()
@@ -353,9 +347,9 @@ local function bootLoader()
         print = print,
         proxy = proxy,
         os = {
-            sleep = function(timeout) sleep(timeout, F, function() error"interrupted" end) end
+            sleep = function(timeout) sleep(timeout) end
         },
-        read = function(hide, lastInput) print(" ") local data = input("", 1, height - 1, F, hide, lastInput) set(1, height - 1, data or "") return data end
+        read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data or "") return data end
     }, {__index = _G})
 
     options = createElements({
@@ -364,7 +358,7 @@ local function bootLoader()
             clear()
 
             ::LOOP::
-                data = input("> ", 1, height, F, F, data)
+                data = input("> ", 1, height, F, data)
 
                 if data then
                     print("> " .. data)
@@ -379,14 +373,14 @@ local function bootLoader()
         draw(1, 1, F, F)
     end)
 
-    options.e[#options.e + 1] = internet and {t = "Internet boot", a = function()
+    options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
         url, data = input("URL: ", F, centerY + 7, 1), ""
 
         if url and url ~= "" then
             handle, chunk = internet.request(url), ""
 
             if handle then
-                status"Downloading..."
+                status("Downloading " .. url .. "...")
                 ::LOOP::
 
                 chunk = handle.read()
@@ -397,9 +391,9 @@ local function bootLoader()
                 end
 
                 handle.close()
-                status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot result", math.huge, 0)
+                status(select(2, execute(data, "=netboot")) or "is empty", "Netboot:", math.huge, 0)
             else
-                status("Malformed URL", "Internet boot result", math.huge, 0)
+                status("Malformed URL", "Netboot:", math.huge, 0)
             end
         end
 
@@ -471,13 +465,13 @@ local function bootLoader()
             options:d()
         end
 
-        centrizedSet(height, "Use ← ↑ → keys to move cursor; Enter to boot; CTRL+ALT+C to shutdown")
+        centrizedSet(height, "Use ← ↑ → key to move cursor; Enter to do action; CTRL+D to shutdown")
     end
 
     draw(1, 1)
 
     ::LOOP::
-        signalType, _, _, code = pullSignal(math.huge, Computer.shutdown)
+        signalType, _, _, code = pullSignal()
 
         if signalType == "key_down" then
             if code == 200 then -- Up
@@ -495,6 +489,8 @@ local function bootLoader()
             end
         elseif signalType:match("component") then
             goto REFRESH
+        elseif signalType == "F" then
+            Computer.shutdown()
         end
     goto LOOP
 end
@@ -507,8 +503,4 @@ for i = 1, #bootCandidates do
         Computer.shutdown()
     end
 end
-if gpu and screen then
-    bootLoader()
-else
-    error"No bootable medium found"
-end
+internet = gpu and screen and bootLoader() or error"No bootable medium found"
