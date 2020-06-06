@@ -1,7 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
-
-function map(collection,mapper)
-    
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer    
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
