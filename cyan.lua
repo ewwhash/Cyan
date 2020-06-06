@@ -170,7 +170,7 @@ local function updateCandidates()
     bootCandidates = {}
     addCandidate(eepromData)
 
-    for filesystem in pairs(component.list"sy") do
+    for filesystem in pairs(component.list"f") do
         addCandidate(eepromData ~= filesystem and filesystem or "")
     end
 end
