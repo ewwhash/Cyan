@@ -1,10 +1,9 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
-    signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match("key") and not users[signal[5]]) or (signal[1]:match("clip") and not users[signal[4]])) then
+    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match("cl" and not users[signal[4]])) then
         return {""}
     end
 
@@ -37,13 +36,11 @@ local function execute(code, stdin, env)
 end
 
 local function split(text, tabulate)
-    local lines = {}
+    lines = {}
 
     for line in text:gmatch"[^\r\n]+" do
         lines[#lines + 1] = line:gsub("\t", tabulate and "    " or "")
     end
-
-    return lines
 end
 
 local function sleep(timeout, breakCode, onBreak)
@@ -64,16 +61,16 @@ end
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
 local eepromData, setData = eeprom.getData(), eeprom.setData
 eeprom.setData = function(data)
-    eepromData = eepromData:match("[a-f-0-9]+") and eepromData:gsub("[a-f-0-9]+", data) or data
+    eepromData = eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data
     setData(eepromData)
 end
 eeprom.getData = function()
-    return eepromData:match("[a-f-0-9]+") or eepromData
+    return eepromData:match"[a-f-0-9]+" or eepromData
 end
 Computer.setBootAddress = eeprom.setData
 Computer.getBootAddress = eeprom.getData
-users = select(2, pcall(load("return " .. (eepromData:match("#(.+)*") or "")))) or {}
-checkUserOnBoot = eepromData:match("*")
+users = select(2, pcall(load("return " .. (eepromData:match"#(.+)*" or "")))) or {}
+checkUserOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
     users[users[i]], users[i] = 1, F
@@ -113,7 +110,8 @@ end
 
 local function status(text, title, wait, breakCode, onBreak, booting, err)
     if gpu and screen then
-        local lines, y, gpuSet = split(text), Computer.uptime() + (wait or 0), gpu.set
+        split(text)
+        local gpuSet, y = Computer.uptime() + (wait or 0), gpu.set
         y = math.ceil(centerY - #lines / 2)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -136,11 +134,6 @@ local function status(text, title, wait, breakCode, onBreak, booting, err)
                 gpuSet(...)
                 gpu.set = gpuSet
             end
-        end
-
-        if err then
-            Computer.beep(1000, .4)
-            Computer.beep(1000, .4)
         end
         
         return sleep(wait or 0, breakCode, onBreak)
@@ -171,7 +164,7 @@ local function updateCandidates()
     bootCandidates = {}
     addCandidate(eeprom.getData())
 
-    for filesystem in pairs(component.list"sy") do
+    for filesystem in pairs(component.list"f") do
         addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
     end
 end
@@ -183,12 +176,12 @@ end
 local function input(prefix, X, y, centrized, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
-    while 1 do
+    ::LOOP::
         signalType, _, char, code = pullSignal(.5)
 
         if signalType == "F" then
             input = F
-            break
+            goto EXIT
         elseif signalType == "key_down" then
             if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
                 input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
@@ -197,7 +190,7 @@ local function input(prefix, X, y, centrized, lastInput)
                 input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
                 cursorPos = cursorPos - 1
             elseif char == 13 then
-                break
+                goto EXIT
             elseif code == 203 and cursorPos > 1 then
                 cursorPos = cursorPos - 1
             elseif code == 205 and cursorPos <= Unicode.len(input) then
@@ -211,7 +204,7 @@ local function input(prefix, X, y, centrized, lastInput)
             end
 
             cursorState = 1
-        elseif signalType:match("clip") then
+        elseif signalType:match"cl" then
             input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + Unicode.len(char)
         elseif signalType ~= "key_up" then
@@ -225,20 +218,21 @@ local function input(prefix, X, y, centrized, lastInput)
         if cursorX <= width then
             set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
-    end
+    goto LOOP
+    ::EXIT::
 
     fill(1, y, width, 1, " ")
     return input
 end
 
 local function print(...)
-    local text, lines = table.pack(...)
+    local text = table.pack(...)
 
     for i = 1, text.n do
         text[i] = tostring(text[i])
     end
 
-    lines = split(table.concat(text, "    "), 1)
+    split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
         gpu.copy(1, 1, width, height - 1, 0, -1)
@@ -350,7 +344,7 @@ local function bootLoader()
         os = {
             sleep = function(timeout) sleep(timeout) end
         },
-        read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data or "") return data end
+        read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data) return data end
     }, {__index = _G})
 
     options = createElements({
@@ -377,7 +371,7 @@ local function bootLoader()
     options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
         url, data = input("URL: ", F, centerY + 7, 1), ""
 
-        if url and url ~= "" then
+        if #url > 0 then
             handle, chunk = internet.request(url), ""
 
             if handle then
@@ -394,7 +388,7 @@ local function bootLoader()
                 handle.close()
                 status(select(2, execute(data, "=netboot")) or "is empty", "Netboot:", math.huge, 0)
             else
-                status("Malformed URL", "Netboot:", math.huge, 0)
+                status("Invalid URL", "Netboot:", math.huge, 0)
             end
         end
 
@@ -431,7 +425,7 @@ local function bootLoader()
                 options.e[correction] = {t = "Rename", a = function()
                     newLabel = input("New label: ", F, centerY + 7, 1)
 
-                    if newLabel and newLabel ~= "" then
+                    if #newLabel > 0 then
                         pcall(proxy.setLabel, newLabel)
                         drive[2] = cutText(newLabel, 16)
                         drives.e[SELF.s].t = cutText(newLabel, 6)
@@ -488,7 +482,7 @@ local function bootLoader()
             elseif code == 28 then -- Enter
                 selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
             end
-        elseif signalType:match("component") then
+        elseif signalType:match"component" then
             goto REFRESH
         elseif signalType == "F" then
             Computer.shutdown()
@@ -496,7 +490,6 @@ local function bootLoader()
     goto LOOP
 end
 
-Computer.beep(1000, .2)
 updateCandidates()
 status("Hold CTRL to stay in bootloader", F, .5, 29, bootLoader)
 for i = 1, #bootCandidates do
@@ -504,4 +497,4 @@ for i = 1, #bootCandidates do
         Computer.shutdown()
     end
 end
-internet = gpu and screen and bootLoader() or error"No bootable medium found"
+internet = gpu and screen and bootLoader() or error"No drives available"
