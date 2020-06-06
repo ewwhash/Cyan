@@ -1,5 +1,8 @@
 local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
 
+function map(collection,mapper)
+    
+
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
     signal[1] = signal[1] or ""
@@ -376,7 +379,7 @@ local function bootLoader()
     options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
         url, data = input("URL: ", F, centerY + 7, 1), ""
 
-        if url and url ~= "" then
+        if url and #url>0 then
             handle, chunk = internet.request(url), ""
 
             if handle then
