@@ -37,13 +37,11 @@ local function execute(code, stdin, env)
 end
 
 local function split(text, tabulate)
-    local lines = {}
+    lines = {}
 
     for line in text:gmatch"[^\r\n]+" do
         lines[#lines + 1] = line:gsub("\t", tabulate and "    " or "")
     end
-
-    return lines
 end
 
 local function sleep(timeout, breakCode, onBreak)
@@ -113,7 +111,8 @@ end
 
 local function status(text, title, wait, breakCode, onBreak, booting, err)
     if gpu and screen then
-        local lines, y, gpuSet = split(text), Computer.uptime() + (wait or 0), gpu.set
+        split(text)
+        local y, gpuSet = Computer.uptime() + (wait or 0), gpu.set
         y = math.ceil(centerY - #lines / 2)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -183,7 +182,7 @@ end
 local function input(prefix, X, y, centrized, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
-    while 1 do
+    ::O::
         signalType, _, char, code = pullSignal(.5)
 
         if signalType == "F" then
@@ -225,7 +224,7 @@ local function input(prefix, X, y, centrized, lastInput)
         if cursorX <= width then
             set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
-    end
+    goto O
 
     fill(1, y, width, 1, " ")
     return input
@@ -238,7 +237,7 @@ local function print(...)
         text[i] = tostring(text[i])
     end
 
-    lines = split(table.concat(text, "    "), 1)
+    split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
         gpu.copy(1, 1, width, height - 1, 0, -1)
