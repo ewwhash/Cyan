@@ -1,14 +1,7 @@
 {
     readOnly = "Только для чтения:",
-    setPassword = "Установить пароль:",
-    requestPasswordAtBoot = "Запрашивать пароль при загрузке системы:",
-    password = "Пароль:",
     flashing = "Прошивка EEPROM...",
-    compressing = "Сжатие исходного кода...",
     makingReadOnly = "Установка EEPROM только для чтения...",
-    maximumPasswordLen = "Максимальная длина пароля 12 символов",
-    malformedSrc = "Исходный код EEPROM поврежден, пожалуйста, свяжитесь с разработчиком",
-    ascii = "Пароль не должен содержать не-ascii символы",
     flash = "Прошить",
     reboot = "Перезагрузка",
     done = "Готово!"

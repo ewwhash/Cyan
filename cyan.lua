@@ -2,6 +2,7 @@ local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, c
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
+    signal[1] = signal[1] or ""
 
     if #signal > 0 and users.n > 0 and ((signal[1]:match("key") and not users[signal[5]]) or (signal[1]:match("clip") and not users[signal[4]])) then
         return {""}
@@ -63,7 +64,7 @@ end
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
 local eepromData, setData = eeprom.getData(), eeprom.setData
 eeprom.setData = function(data)
-    eepromData = eepromData:match("[a-f-0-9]+") and eepromData:gsub("[a-f-0-9]+", data)
+    eepromData = eepromData:match("[a-f-0-9]+") and eepromData:gsub("[a-f-0-9]+", data) or data
     setData(eepromData)
 end
 eeprom.getData = function()
@@ -71,7 +72,7 @@ eeprom.getData = function()
 end
 Computer.setBootAddress = eeprom.setData
 Computer.getBootAddress = eeprom.getData
-users = select(2, pcall(load("return " .. (eepromData:match("#(.+)*"))))) or {}
+users = select(2, pcall(load("return " .. (eepromData:match("#(.+)*") or "")))) or {}
 checkUserOnBoot = eepromData:match("*")
 users.n = #users
 for i = 1, #users do
