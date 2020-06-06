@@ -168,10 +168,10 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(eeprom.getData())
+    addCandidate(eepromData)
 
     for filesystem in pairs(component.list"sy") do
-        addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
+        addCandidate(eepromData ~= filesystem and filesystem or "")
     end
 end
 
