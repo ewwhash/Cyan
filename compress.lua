@@ -1,4 +1,4 @@
-local file = io.open("cyan.lua", "r")
+local file = io.open("minified.lua", "r")
 local data = file:read("*a")
 file:close()
 
