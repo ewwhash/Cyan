@@ -491,7 +491,7 @@ local function bootLoader()
 end
 
 updateCandidates()
-status("Hold CTRL to stay in bootloader", F, .5, 29, bootLoader)
+status("Hold CTRL to stay in bootloader", F, 1.3, 29, bootLoader)
 for i = 1, #bootCandidates do
     if boot(bootCandidates[i]) then
         Computer.shutdown()
