@@ -242,7 +242,7 @@ local function print(...)
 end
 
 local function bootPreview(drive, booting)
-    address = cutText(drive[3], booting and 36 or 6)
+    local address = cutText(drive[3], booting and 36 or 6)
     return drive[4] and ("Boot%s %s from %s (%s)")
     :format(
         booting and "ing" or "",
