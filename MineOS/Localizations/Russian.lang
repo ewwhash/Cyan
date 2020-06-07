@@ -1,5 +1,11 @@
 {
     readOnly = "Только для чтения:",
+    whitelist = "Белый список:",
+    requireUserPressOnBoot = "Нужно нажатие пользователя для загрузки:",
+    username = "Введите имя игрока",
+    invalidUsername = "Некорректное имя пользователя",
+    freeSpaceLimit = "Вы превысили лимит пользователей,
+    deleteUser = "Удалить пользователя",
     flashing = "Прошивка EEPROM...",
     makingReadOnly = "Установка EEPROM только для чтения...",
     flash = "Прошить",

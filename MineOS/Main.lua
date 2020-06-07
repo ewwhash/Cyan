@@ -3,57 +3,79 @@ local system = require("System")
 local component = require("Component")
 local filesystem = require("Filesystem")
 local internet = require("Internet")
+local text = require("Text")
 local eeprom = component.eeprom
+local freespace = eeprom.getDataSize() - 38
 
 --------------------------------------------------------------------------------
 
 local workspace = system.getWorkspace()
-local currentScript = system.getCurrentScript()
-local localization = system.getLocalization(filesystem.path(currentScript) .. "Localizations/")
-local userSettings = system.getUserSettings()
+local localization = system.getLocalization(filesystem.path(system.getCurrentScript()) .. "Localizations/")
 local container = GUI.addBackgroundContainer(workspace, true, true, "Cyan BIOS")
-local password, requestPasswordAtBoot, readOnly = false, false, false
+local users, requireUserPressOnBoot, readOnly = {}, false, false
 
 --------------------------------------------------------------------------------
 
 local readOnlySwitch = container.layout:addChild(GUI.switchAndLabel(1, 1, 11 + unicode.len(localization.readOnly), 8, 0x8400FF, 0x1D1D1D, 0xFFFFFF, 0x878787, localization.readOnly, false))
-local passwordSwitch = container.layout:addChild(GUI.switchAndLabel(1, 4, 11 + unicode.len(localization.password), 8, 0xFFA800, 0x1D1D1D, 0xFFFFFF, 0x878787, localization.password, false))
-local passwordInput = container.layout:addChild(GUI.input(1, 1, 30, 3, 0xEEEEEE, 0x555555, 0x999999, 0xFFFFFF, 0x2D2D2D, "", localization.password, nil, "•"))
-local passwordAtBootSwitch = container.layout:addChild(GUI.switchAndLabel(1, 4, 11 + unicode.len(localization.requestPasswordAtBoot), 8, 0x00fd01, 0x1D1D1D, 0xFFFFFF, 0x878787, localization.requestPasswordAtBoot, false))
-local flashButton = container.layout:addChild(GUI.roundedButton(1, 1, 17, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.flash))
+local whiteListSwitch = container.layout:addChild(GUI.switchAndLabel(1, 4, 11 + unicode.len(localization.whitelist), 8, 0xFFA800, 0x1D1D1D, 0xFFFFFF, 0x878787, localization.whitelist, false))
+local whitelistComboBox = container.layout:addChild(GUI.comboBox(3, 2, 30, 3, 0xEEEEEE, 0x2D2D2D, 0xCCCCCC, 0x888888))
+local deleteUserButton = container.layout:addChild(GUI.roundedButton(1, 1, unicode.len(localization.deleteUser) + 8, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.deleteUser))
+local userInput = container.layout:addChild(GUI.input(1, 1, 30, 3, 0xEEEEEE, 0x555555, 0x999999, 0xFFFFFF, 0x2D2D2D, "", localization.username))
+local requireUserPressOnBootSwitch = container.layout:addChild(GUI.switchAndLabel(1, 4, 11 + unicode.len(localization.requireUserPressOnBoot), 8, 0x00fd01, 0x1D1D1D, 0xFFFFFF, 0x878787, localization.requireUserPressOnBoot, false))
+local flashButton = container.layout:addChild(GUI.roundedButton(1, 1, unicode.len(localization.flash) + 8, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.flash))
 
-passwordInput.validator = function(text)
-    if unicode.len(text) ~= #text then
-        GUI.alert(localization.ascii)
-    end
-
-    if unicode.len(text) <= 12 then
+userInput.validator = function(username)
+    if #text.serialize(users) + #username + 3 <= freespace then
         return true
     else
-        GUI.alert(localization.maximumPasswordLen)
+        GUI.alert(localization.freeSpaceLimit)
     end
 end
 
-passwordInput.hidden = true
-passwordAtBootSwitch.hidden = true
+userInput.onInputFinished = function()
+    if #userInput.text > 0 then
+        table.insert(users, userInput.text)
+        whitelistComboBox:addItem(userInput.text)
+        whitelistComboBox.hidden = false
+        deleteUserButton.hidden = false
+        userInput.text = ""
+        workspace:draw()
+    end
+end
 
-passwordSwitch.switch.onStateChanged = function()
-    passwordInput.hidden = not passwordInput.hidden
-    passwordAtBootSwitch.hidden = not passwordAtBootSwitch.hidden
+whiteListSwitch.switch.onStateChanged = function()
+    requireUserPressOnBootSwitch.hidden = not requireUserPressOnBootSwitch.hidden
+    requireUserPressOnBoot = false
+    userInput.hidden = not userInput.hidden
+    whitelistComboBox.hidden = true
+    whitelistComboBox:clear()
+    users = {}
+    workspace:draw()
+end
 
-    if not passwordSwitch.switch.state then
-        password = false
-        requestPasswordAtBoot = false
+deleteUserButton.onTouch = function()
+    local username = whitelistComboBox:getItem(whitelistComboBox.selectedItem).text
+    for i = 1, #users do
+        if users[i] == username then
+            table.remove(users, i)
+        end
+    end
+    whitelistComboBox:removeItem(whitelistComboBox.selectedItem)
+    if whitelistComboBox:count() == 0 then
+        whitelistComboBox:clear()
+        deleteUserButton.hidden = true
+        whitelistComboBox.hidden = true
     end
     workspace:draw()
 end
 
-passwordAtBootSwitch.switch.onStateChanged = function()
-    requestPasswordAtBoot = not requestPasswordAtBoot
-end
+whitelistComboBox.hidden = true
+requireUserPressOnBootSwitch.hidden = true
+userInput.hidden = true
+deleteUserButton.hidden = true
 
-passwordInput.onInputFinished = function()
-    password = passwordInput.text
+requireUserPressOnBootSwitch.switch.onStateChanged = function()
+    requireUserPressOnBoot = not requireUserPressOnBoot
 end
 
 readOnlySwitch.switch.onStateChanged = function()
@@ -61,76 +83,48 @@ readOnlySwitch.switch.onStateChanged = function()
 end
 
 flashButton.onTouch = function()
-    passwordSwitch:remove()
-    passwordInput:remove()
-    passwordAtBootSwitch:remove()
+    whitelistComboBox:remove()
+    whiteListSwitch:remove()
+    requireUserPressOnBootSwitch:remove()
+    userInput:remove()
     readOnlySwitch:remove()
     flashButton:remove()
-    local lzss = require("LZSS")
+    deleteUserButton:remove()
     local statusText
 
     local function status(text)
         if statusText then
             statusText:remove()
         end
-
         statusText = container.layout:addChild(GUI.text(1, 1, 0x878787, text))
         workspace:draw()
     end
 
-    local data, reason = internet.request("https://raw.githubusercontent.com/BrightYC/Cyan/master/for-compress.lua")
+    local data, reason, usersSerialized = internet.request("http://localhost/cyan.comp"), nil, "#{"
 
     if not data then
         error(reason)
     end
-
-    status(localization.compressing)
-    local compressed = lzss.getSXF(lzss.compress(
-        data:gsub(
-            "%%(%w+)%%",
-            {
-                pass = password or "",
-                passOnBoot = requestPasswordAtBoot and "1" or "F"}
-            )
-        ),
-        true
-    )
-
-    package.loaded.lzss = nil
-
-    if load(compressed) then
-        status(localization.flashing)
-        eeprom.set(compressed)
-        eeprom.setLabel("Cyan BIOS")
-        if readOnly then
-            status(localization.makingReadOnly)
-            eeprom.makeReadonly(eeprom.getChecksum())
+    if #users > 0 then
+        for i = 1, #users do
+            usersSerialized = usersSerialized .. ('%s%s%s'):format('"', users[i], ('"%s'):format(i == #users and "" or ","))
         end
-
-        status(localization.done)
-        container.layout:addChild(GUI.roundedButton(1, 1, 18, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.reboot)).onTouch = function() computer.shutdown(true) end
-    else
-        GUI.alert(localization.malformedSrc)
-        container:remove()
-        workspace:stop()
+        usersSerialized = usersSerialized .. "}" .. (requireUserPressOnBoot and "*" or "")
     end
-end
-
-if computer.getArchitecture() == "Lua 5.2" then
-    table.insert(userSettings.tasks, {
-        path = currentScript,
-        enabled = true,
-        mode = 1
-    })
-
-    system.saveUserSettings()
-    computer.setArchitecture("Lua 5.3")
-end
-
-for i = 1, #userSettings.tasks do
-    if userSettings.tasks[i].path == currentScript then
-        table.remove(userSettings.tasks, i)
+    if not data then
+        error(reason)
     end
+
+    status(localization.flashing)
+    eeprom.set(data)
+    eeprom.setData((eeprom.getData():match("[a-f-0-9]+") or eeprom.getData()) .. (#users > 0 and usersSerialized or ""), true)
+    eeprom.setLabel("Cyan BIOS")
+    if readOnly then
+        status(localization.makingReadOnly)
+        eeprom.makeReadonly(eeprom.getChecksum())
+    end
+    status(localization.done)
+    container.layout:addChild(GUI.roundedButton(1, 1, unicode.len(localization.reboot) + 8, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.reboot)).onTouch = function() computer.shutdown(true) end
 end
 
 workspace:start(0)

@@ -1,9 +1,10 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, checkUserOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
+    signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match("cl" and not users[signal[4]])) then
+    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
         return {""}
     end
 
@@ -60,8 +61,8 @@ end
 
 local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
 local eepromData, setData = eeprom.getData(), eeprom.setData
-eeprom.setData = function(data)
-    eepromData = eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data
+eeprom.setData = function(data, overwrite)
+    eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
     setData(eepromData)
 end
 eeprom.getData = function()
@@ -70,7 +71,7 @@ end
 Computer.setBootAddress = eeprom.setData
 Computer.getBootAddress = eeprom.getData
 users = select(2, pcall(load("return " .. (eepromData:match"#(.+)*" or "")))) or {}
-checkUserOnBoot = eepromData:match"*"
+requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
     users[users[i]], users[i] = 1, F
@@ -111,8 +112,7 @@ end
 local function status(text, title, wait, breakCode, onBreak, booting, err)
     if gpu and screen then
         split(text)
-        local gpuSet, y = Computer.uptime() + (wait or 0), gpu.set
-        y = math.ceil(centerY - #lines / 2)
+        local gpuSet, y = gpu.set, math.ceil(centerY - #lines / 2)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
         clear()
@@ -135,7 +135,7 @@ local function status(text, title, wait, breakCode, onBreak, booting, err)
                 gpu.set = gpuSet
             end
         end
-        
+
         return sleep(wait or 0, breakCode, onBreak)
     end
 end
@@ -284,7 +284,7 @@ local function boot(drive)
             return 1
         end
 
-        data = checkUserOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
+        data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
     end
 end
 
