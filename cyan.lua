@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
