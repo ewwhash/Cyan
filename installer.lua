@@ -51,4 +51,4 @@ if readOnly then
     print("Making EEPROM read only...")
     eeprom.makeReadonly(eeprom.getChecksum())
 end
---computer.shutdown(true)
+computer.shutdown(true)
