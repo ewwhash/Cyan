@@ -32,7 +32,7 @@ if QA("Create whitelist for bootloader access?") then
             if #users > freespace then
                 io.stderr:write(("\nMaximum whitelist size is %s and you used %s\n"):format(freespace, #users))
             elseif #users > 0 then
-                users = ("#%s%s"):format(users, QA("Request user press on boot?") and "*" or "")
+                users = ("#%s#%s"):format(users, QA("Request user press on boot?") and "*" or "")
             end
         end
     until users and #users > 0 and not err

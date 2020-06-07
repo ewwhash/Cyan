@@ -109,7 +109,7 @@ flashButton.onTouch = function()
         for i = 1, #users do
             usersSerialized = usersSerialized .. ('%s%s%s'):format('"', users[i], ('"%s'):format(i == #users and "" or ","))
         end
-        usersSerialized = usersSerialized .. "}" .. (requireUserPressOnBoot and "*" or "")
+        usersSerialized = usersSerialized .. "}#" .. (requireUserPressOnBoot and "*" or "")
     end
     if not data then
         error(reason)

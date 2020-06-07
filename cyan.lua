@@ -70,7 +70,7 @@ eeprom.getData = function()
 end
 Computer.setBootAddress = eeprom.setData
 Computer.getBootAddress = eeprom.getData
-users = select(2, pcall(load("return " .. (eepromData:match"#(.+)*" or "")))) or {}
+users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "")))) or {}
 requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
