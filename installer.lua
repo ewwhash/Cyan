@@ -39,7 +39,7 @@ if QA("Create whitelist for bootloader access?") then
 end
 
 readOnly = QA("Make EEPROM read only?")
-os.execute("wget -f http://localhost/cyan.comp /tmp/cyan.comp")
+os.execute("wget -f https://github.com/BrightYC/Cyan/raw/master/cyan.comp /tmp/cyan.comp")
 local file = io.open("/tmp/cyan.comp", "r")
 local data = file:read("*a")
 file:close()

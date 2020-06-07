@@ -100,7 +100,7 @@ flashButton.onTouch = function()
         workspace:draw()
     end
 
-    local data, reason, usersSerialized = internet.request("http://localhost/cyan.comp"), nil, "#{"
+    local data, reason, usersSerialized = internet.request("https://github.com/BrightYC/Cyan/raw/master/cyan.comp"), nil, "#{"
 
     if not data then
         error(reason)
