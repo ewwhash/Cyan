@@ -1,4 +1,4 @@
-<img align="left" width="256" height="256" src="https://i.imgur.com/TehMqMd.png">
+<img align="right" width="256" height="256" src="https://i.imgur.com/TehMqMd.png">
 
 **Advanced bootloader with Lua REPL, protected access and cool interface (OpenComputers)**
 
