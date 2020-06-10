@@ -85,16 +85,18 @@ local function configureGPU(restorePalette)
     end
 end
 
-local eepromData, setData = eeprom.getData(), eeprom.setData
+local eepromData, eepromSetData = eeprom.getData(), eeprom.setData
 local function setData(data, overwrite)
     eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
     if eeprom then
-        setData(eepromData)
+        eepromSetData(eepromData)
     end
 end
 local function getData()
     return eepromData:match"[a-f-0-9]+" or eepromData
 end
+eeprom.setData = setData
+eeprom.getData = getData
 Computer.setBootAddress = setData
 Computer.getBootAddress = getData
 users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "")))) or {}
@@ -129,7 +131,7 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak, restorePalette, err)
+local function status(text, title, wait, breakCode, onBreak, restorePalette)
     if gpu and screen then
         split(text)
         local y = math.ceil(centerY - #lines / 2)
@@ -145,7 +147,7 @@ local function status(text, title, wait, breakCode, onBreak, restorePalette, err
             centrizedSet(y, lines[i])
             y = y + 1
         end
-        
+
         configureGPU(restorePalette)
         return sleep(wait or 0, breakCode, onBreak)
     else
@@ -175,10 +177,10 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(eeprom.getData())
+    addCandidate(getData())
 
     for filesystem in pairs(component.list"f") do
-        addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
+        addCandidate(getData() ~= filesystem and filesystem or "")
     end
 end
 
@@ -286,8 +288,8 @@ local function boot(drive)
 
         boot = function()
             status(bootPreview(drive, 1), F, .5, F, F, 1)
-            if eeprom.getData() ~= drive[3] then
-                eeprom.setData(drive[3])
+            if getData() ~= drive[3] then
+                setData(drive[3])
             end
             success, err = execute(data, "=" .. drive[4])
             if not success then
@@ -306,54 +308,6 @@ local function bootLoader()
     ::REFRESH::
     internet = proxy"et"
     updateCandidates()
-    if not configureGPU() then
-        goto MAIN_LOOP
-    end
-
-    local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
-        -- borderType - 1 == small border
-        -- borderType - 2 == big border
-
-        return {
-            e = elements,
-            s = 1,
-            y = y,
-            k = onArrowKeyUpOrDown,
-            b = borderType,
-            d = function(SELF, withoutBorder, withoutSelect) -- draw()
-                y = SELF.y
-                borderType = SELF.b
-                fill(1, y - 1, width, 3, " ", 0x002b36)
-                selectedElementsLine = withoutSelect and selectedElementsLine or SELF
-                local elementsAndBorderLength, borderSpaces, elementLength, x, selectedElement, element = 0, borderType == 1 and 6 or 8
-
-                if onDraw then
-                    onDraw(SELF)
-                end
-
-                for i = 1, #SELF.e do
-                    elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
-                end
-
-                elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
-                x = centrize(elementsAndBorderLength)
-
-                for i = 1, #SELF.e do
-                    selectedElement, element = SELF.s == i and 1, SELF.e[i]
-                    elementLength = Unicode.len(element.t)
-
-                    if selectedElement and not withoutBorder then
-                        fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
-                        set(x, y, element.t, 0x8cb9c5, 0x002b36)
-                    else
-                        set(x, y, element.t, 0x002b36, 0x8cb9c5)
-                    end
-
-                    x = x + elementLength + borderSpaces
-                end
-            end
-        }
-    end
 
     local env, signalType, code, data, options, drives, draw, drive, proxy, readOnly, newLabel, url, handle, chunk, correction, spaceTotal, _ = setmetatable({
         print = print,
@@ -364,123 +318,173 @@ local function bootLoader()
         read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data) return data end
     }, {__index = _G})
 
-    options = createElements({
-        {t = "Power off", a = function() Computer.shutdown() end},
-        {t = "Lua", a = function()
-            clear()
+    if not configureGPU() then
+        goto MAIN_LOOP
+    end
 
-            ::LOOP_OPTIONS::
-                data = input("> ", 1, height, F, data)
+    do local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
+            -- borderType - 1 == small border
+            -- borderType - 2 == big border
 
-                if data then
-                    print("> " .. data)
-                    set(1, height, ">")
-                    print(select(2, execute(data, "=stdin", env)))
-                    goto LOOP_OPTIONS
-                end
-            draw(F, F, 1, 1)
-        end},
-    }, centerY + 2, 1, function()
-        selectedElementsLine = drives
-        draw(1, 1, F, F)
-    end)
+            return {
+                e = elements,
+                s = 1,
+                y = y,
+                k = onArrowKeyUpOrDown,
+                b = borderType,
+                d = function(SELF, withoutBorder, withoutSelect) -- draw()
+                    y = SELF.y
+                    borderType = SELF.b
+                    fill(1, y - 1, width, 3, " ", 0x002b36)
+                    selectedElementsLine = withoutSelect and selectedElementsLine or SELF
+                    local elementsAndBorderLength, borderSpaces, elementLength, x, selectedElement, element = 0, borderType == 1 and 6 or 8
 
-    options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
-        url, data = input("URL: ", F, centerY + 7, 1), ""
-
-        if #url > 0 then
-            handle, chunk = internet.request(url), ""
-
-            if handle then
-                status("Downloading " .. url .. "...")
-                ::LOOP_NETBOOT::
-
-                chunk = handle.read()
-
-                if chunk then
-                    data = data .. chunk
-                    goto LOOP_NETBOOT
-                end
-
-                handle.close()
-                status(select(2, execute(data, "=netboot")) or "is empty", "Netboot:", math.huge, 0)
-            else
-                status("Invalid URL", "Netboot:", math.huge, 0)
-            end
-        end
-
-        draw(F, F, 1, 1)
-    end}
-
-    if #bootCandidates > 0 then
-        correction = #options.e + 1
-        drives = createElements({}, centerY - 2, 2, function()
-            selectedElementsLine = options
-            draw(F, F, 1, 1)
-        end, function(SELF)
-            drive = bootCandidates[SELF.s]
-            proxy = drive[1]
-            spaceTotal = proxy.spaceTotal()
-            readOnly = proxy.isReadOnly()
-            fill(1, centerY + 5, width, 3, " ")
-            centrizedSet(centerY + 5, bootPreview(drive), F, 0xFFFFFF)
-            centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
-                :format(
-                    math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
-                    readOnly and "Read only" or "Read & Write",
-                    spaceTotal < 2 ^ 20 and "FDD" or spaceTotal < 2 ^ 20 * 12 and "HDD" or "RAID"
-                )
-            )
-
-            for i = correction, #options.e do
-                options.e[i] = F
-            end
-
-            if readOnly then
-                options.s = options.s > #options.e and #options.e or options.s
-            else
-                options.e[correction] = {t = "Rename", a = function()
-                    newLabel = input("New label: ", F, centerY + 7, 1)
-
-                    if #newLabel > 0 then
-                        pcall(proxy.setLabel, newLabel)
-                        drive[2] = cutText(newLabel, 16)
-                        drives.e[SELF.s].t = cutText(newLabel, 6)
+                    if onDraw then
+                        onDraw(SELF)
                     end
 
-                    drives:d(1, 1)
-                    options:d()
-                end}
-                options.e[#options.e + 1] = {t = "Format", a = function() drive[4] = F proxy.remove("/") drives:d(1, 1) options:d() end}
-            end
+                    for i = 1, #SELF.e do
+                        elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
+                    end
 
-            options:d(1, 1)
+                    elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
+                    x = centrize(elementsAndBorderLength)
+
+                    for i = 1, #SELF.e do
+                        selectedElement, element = SELF.s == i and 1, SELF.e[i]
+                        elementLength = Unicode.len(element.t)
+
+                        if selectedElement and not withoutBorder then
+                            fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
+                            set(x, y, element.t, 0x8cb9c5, 0x002b36)
+                        else
+                            set(x, y, element.t, 0x002b36, 0x8cb9c5)
+                        end
+
+                        x = x + elementLength + borderSpaces
+                    end
+                end
+            }
+        end
+
+        options = createElements({
+            {t = "Power off", a = function() Computer.shutdown() end},
+            {t = "Lua", a = function()
+                clear()
+
+                ::LOOP_OPTIONS::
+                    data = input("> ", 1, height, F, data)
+
+                    if data then
+                        print("> " .. data)
+                        set(1, height, ">")
+                        print(select(2, execute(data, "=stdin", env)))
+                        goto LOOP_OPTIONS
+                    end
+                draw(F, F, 1, 1)
+            end},
+        }, centerY + 2, 1, function()
+            selectedElementsLine = drives
+            draw(1, 1, F, F)
         end)
 
-        for i = 1, #bootCandidates do
-            drives.e[i] = {t = cutText(bootCandidates[i][2], 6), a = function(SELF)
-                boot(bootCandidates[SELF.s])
-            end}
-        end
-    else
-        options.y = centerY
-        options.b = 2
-    end
+        options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
+            url, data = input("URL: ", F, centerY + 7, 1), ""
 
-    draw = function(optionsWithoutBorder, optionsWithoutSelect, drivesWithoutBorder, drivesWithoutSelect)
-        clear()
-        if drives then
-            drives:d(drivesWithoutBorder, drivesWithoutSelect)
-            options:d(optionsWithoutBorder, optionsWithoutSelect)
+            if #url > 0 then
+                handle, chunk = internet.request(url), ""
+
+                if handle then
+                    status("Downloading " .. url .. "...")
+                    ::LOOP_NETBOOT::
+
+                    chunk = handle.read()
+
+                    if chunk then
+                        data = data .. chunk
+                        goto LOOP_NETBOOT
+                    end
+
+                    handle.close()
+                    status(select(2, execute(data, "=netboot")) or "is empty", "Netboot:", math.huge, 0)
+                else
+                    status("Invalid URL", "Netboot:", math.huge, 0)
+                end
+            end
+
+            draw(F, F, 1, 1)
+        end}
+
+        if #bootCandidates > 0 then
+            correction = #options.e + 1
+            drives = createElements({}, centerY - 2, 2, function()
+                selectedElementsLine = options
+                draw(F, F, 1, 1)
+            end, function(SELF)
+                drive = bootCandidates[SELF.s]
+                proxy = drive[1]
+                spaceTotal = proxy.spaceTotal()
+                readOnly = proxy.isReadOnly()
+                fill(1, centerY + 5, width, 3, " ")
+                centrizedSet(centerY + 5, bootPreview(drive), F, 0xFFFFFF)
+                centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
+                    :format(
+                        math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
+                        readOnly and "Read only" or "Read & Write",
+                        spaceTotal < 2 ^ 20 and "FDD" or spaceTotal < 2 ^ 20 * 12 and "HDD" or "RAID"
+                    )
+                )
+
+                for i = correction, #options.e do
+                    options.e[i] = F
+                end
+
+                if readOnly then
+                    options.s = options.s > #options.e and #options.e or options.s
+                else
+                    options.e[correction] = {t = "Rename", a = function()
+                        newLabel = input("New label: ", F, centerY + 7, 1)
+
+                        if #newLabel > 0 then
+                            pcall(proxy.setLabel, newLabel)
+                            drive[2] = cutText(newLabel, 16)
+                            drives.e[SELF.s].t = cutText(newLabel, 6)
+                        end
+
+                        drives:d(1, 1)
+                        options:d()
+                    end}
+                    options.e[#options.e + 1] = {t = "Format", a = function() drive[4] = F proxy.remove("/") drives:d(1, 1) options:d() end}
+                end
+
+                options:d(1, 1)
+            end)
+
+            for i = 1, #bootCandidates do
+                drives.e[i] = {t = cutText(bootCandidates[i][2], 6), a = function(SELF)
+                    boot(bootCandidates[SELF.s])
+                end}
+            end
         else
-            centrizedSet(centerY + 4, "No drives available", 0x002b36, 0xFFFFFF)
-            options:d()
+            options.y = centerY
+            options.b = 2
         end
 
-        centrizedSet(height, "Use ← ↑ → key to move cursor; Enter to do action; CTRL+D to shutdown")
-    end
+        draw = function(optionsWithoutBorder, optionsWithoutSelect, drivesWithoutBorder, drivesWithoutSelect)
+            clear()
+            if drives then
+                drives:d(drivesWithoutBorder, drivesWithoutSelect)
+                options:d(optionsWithoutBorder, optionsWithoutSelect)
+            else
+                centrizedSet(centerY + 4, "No drives available", 0x002b36, 0xFFFFFF)
+                options:d()
+            end
 
-    draw(1, 1)
+            centrizedSet(height, "Use ← ↑ → key to move cursor; Enter to do action; CTRL+D to shutdown")
+        end
+
+        draw(1, 1)
+    end
 
     ::MAIN_LOOP::
         signalType, _, _, code = pullSignal()
