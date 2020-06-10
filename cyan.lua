@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, proxyList, key, Unicode, Computer, invoke, eepromAddress, gpuAddress, screen, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, {}, unicode, computer, component.invoke, component.list"pr"(), component.list"gp"(), component.list"sc"()
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -17,9 +17,18 @@ local function pullSignal(timeout)
     return table.unpack(signal)
 end
 
-local function proxy(componentType)
-    local address = component.list(componentType)()
-    return address and component.proxy(address)
+local function arr2a_arr(tbl)
+    for i = #tbl, 1, -1 do
+        tbl[tbl[i]], tbl[i] = true, nil
+    end
+end
+
+function component.invoke(address, method, ...)
+    if address == eepromAddress and method == "getData" then
+
+    end
+
+    return invoke(address, method, ...)
 end
 
 local function execute(code, stdin, env)
@@ -60,8 +69,6 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local function configureSystem(restorePalette)
-    gpu, eeprom, screen = proxy"gp", proxy"pr", component.list"sc"()
-
     if gpu and screen then
         if restorePalette then
             local gpuSet = gpu.set
@@ -81,11 +88,9 @@ local function configureSystem(restorePalette)
             return 1
         end
     end
-
-    if not eeprom and 
 end
-configureSystem()
 
+configureSystem()
 local eepromData, eepromSetData = eeprom.getData(), eeprom.setData
 
 local function setData(data, overwrite)
@@ -98,8 +103,6 @@ local function getData()
     return eepromData:match"[a-f-0-9]+" or eepromData
 end
 
-eeprom.setData = setData
-eeprom.getData = getData
 Computer.setBootAddress = setData
 Computer.getBootAddress = getData
 
