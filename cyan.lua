@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, internet, lines = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -74,7 +74,7 @@ local function configureGPU(restorePalette)
                 gpuSet(...)
                 gpu.set = gpuSet
             end
-        else
+        elseif gpu then
             gpu.bind((screen))
             width, height = gpu.maxResolution()
             centerY = height / 2
@@ -134,15 +134,14 @@ end
 local function status(text, title, wait, breakCode, onBreak, restorePalette)
     if gpu and screen then
         split(text)
-        local y = math.ceil(centerY - #lines / 2)
         configureGPU()
         clear()
+        local y = math.ceil(centerY - #lines / 2)
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xFFFFFF)
             y = y + 1
         end
-
         for i = 1, #lines do
             centrizedSet(y, lines[i])
             y = y + 1
@@ -155,35 +154,6 @@ local function status(text, title, wait, breakCode, onBreak, restorePalette)
     end
 end
 
-local function ERROR(err)
-    status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1)
-end
-
-local function addCandidate(address)
-    local proxy = component.proxy(address)
-
-    if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
-        bootCandidates[#bootCandidates + 1] = {
-            proxy, proxy.getLabel() or "N/A", address
-        }
-
-        for i = 1, #bootFiles do
-            if proxy.exists(bootFiles[i]) then
-                bootCandidates[#bootCandidates][4] = bootFiles[i]
-            end
-        end
-    end
-end
-
-local function updateCandidates()
-    bootCandidates = {}
-    addCandidate(getData())
-
-    for filesystem in pairs(component.list"f") do
-        addCandidate(getData() ~= filesystem and filesystem or "")
-    end
-end
-
 local function cutText(text, maxLength)
     return Unicode.len(text) > maxLength and Unicode.sub(text, 1, maxLength) .. "…" or text
 end
@@ -191,12 +161,12 @@ end
 local function input(prefix, X, y, centrized, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
-    ::LOOP::
+    while 1 do
         signalType, _, char, code = pullSignal(.5)
 
         if signalType == "F" then
             input = F
-            goto EXIT
+            break
         elseif signalType == "key_down" then
             if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
                 input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
@@ -205,7 +175,7 @@ local function input(prefix, X, y, centrized, lastInput)
                 input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
                 cursorPos = cursorPos - 1
             elseif char == 13 then
-                goto EXIT
+                break
             elseif code == 203 and cursorPos > 1 then
                 cursorPos = cursorPos - 1
             elseif code == 205 and cursorPos <= Unicode.len(input) then
@@ -233,8 +203,7 @@ local function input(prefix, X, y, centrized, lastInput)
         if cursorX <= width then
             set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
-    goto LOOP
-    ::EXIT::
+    end
 
     fill(1, y, width, 1, " ")
     return input
@@ -272,7 +241,34 @@ local function bootPreview(drive, booting)
         )
 end
 
+local function addCandidate(address)
+    local proxy = component.proxy(address)
+
+    if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
+        bootCandidates[#bootCandidates + 1] = {
+            proxy, proxy.getLabel() or "N/A", address
+        }
+
+        for i = 1, #bootFiles do
+            if proxy.exists(bootFiles[i]) then
+                bootCandidates[#bootCandidates][4] = bootFiles[i]
+                break
+            end
+        end
+    end
+end
+
+local function updateCandidates()
+    bootCandidates = {}
+    addCandidate(getData())
+
+    for filesystem in pairs(component.list"f") do
+        addCandidate(getData() ~= filesystem and filesystem or "")
+    end
+end
+
 local function boot(drive)
+    stdout(drive)
     if drive[4] then
         local handle, data, chunk, success, err, boot = drive[1].open(drive[4], "r"), ""
 
@@ -292,11 +288,8 @@ local function boot(drive)
                 setData(drive[3])
             end
             success, err = execute(data, "=" .. drive[4])
-            if not success then
-                ERROR(err)
-            end
-
-            return 1
+            status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1)
+            Computer.shutdown()
         end
 
         data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
@@ -306,7 +299,6 @@ end
 local function bootLoader()
     userChecked = 1
     ::REFRESH::
-    internet = proxy"et"
     updateCandidates()
 
     local env, signalType, code, data, options, drives, draw, drive, proxy, readOnly, newLabel, url, handle, chunk, correction, spaceTotal, _ = setmetatable({
@@ -319,13 +311,11 @@ local function bootLoader()
     }, {__index = _G})
 
     if not configureGPU() then
-        goto MAIN_LOOP
+        goto LOOP
     end
 
-    do local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
-            -- borderType - 1 == small border
-            -- borderType - 2 == big border
-
+    do 
+        local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
             return {
                 e = elements,
                 s = 1,
@@ -342,7 +332,6 @@ local function bootLoader()
                     if onDraw then
                         onDraw(SELF)
                     end
-
                     for i = 1, #SELF.e do
                         elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
                     end
@@ -363,6 +352,17 @@ local function bootLoader()
 
                         x = x + elementLength + borderSpaces
                     end
+                end,
+                a = function(SELF, element)
+                    table.insert(SELF, element)
+                    SELF:d()
+                end,
+                r = function(SELF, index)
+                    table.remove(SELF.e, index)
+                    if SELF.s > #SELF.e then
+                        SELF.s = #SELF.e
+                    end
+                    SELF:d()
                 end
             }
         end
@@ -372,14 +372,14 @@ local function bootLoader()
             {t = "Lua", a = function()
                 clear()
 
-                ::LOOP_OPTIONS::
+                ::LOOP::
                     data = input("> ", 1, height, F, data)
 
                     if data then
                         print("> " .. data)
                         set(1, height, ">")
                         print(select(2, execute(data, "=stdin", env)))
-                        goto LOOP_OPTIONS
+                        goto LOOP
                     end
                 draw(F, F, 1, 1)
             end},
@@ -388,21 +388,21 @@ local function bootLoader()
             draw(1, 1, F, F)
         end)
 
-        options.e[#options.e + 1] = internet and {t = "Netboot", a = function()
+        options.e[#options.e + 1] = proxy"et" and {t = "Netboot", a = function()
             url, data = input("URL: ", F, centerY + 7, 1), ""
 
             if #url > 0 then
-                handle, chunk = internet.request(url), ""
+                handle, chunk = proxy"et".request(url), ""
 
                 if handle then
                     status("Downloading " .. url .. "...")
-                    ::LOOP_NETBOOT::
+                    ::LOOP::
 
                     chunk = handle.read()
 
                     if chunk then
                         data = data .. chunk
-                        goto LOOP_NETBOOT
+                        goto LOOP
                     end
 
                     handle.close()
@@ -486,7 +486,7 @@ local function bootLoader()
         draw(1, 1)
     end
 
-    ::MAIN_LOOP::
+    ::LOOP::
         signalType, _, _, code = pullSignal()
 
         if signalType == "key_down" and gpu and screen then
@@ -508,14 +508,12 @@ local function bootLoader()
         elseif signalType == "F" then
             Computer.shutdown()
         end
-    goto MAIN_LOOP
+    goto LOOP
 end
 
 updateCandidates()
-status("Hold CTRL to stay in bootloader", F, 1.3, 29, bootLoader)
+status("Hold CTRL to stay in bootloader", F, .9, 29, bootLoader)
 for i = 1, #bootCandidates do
-    if boot(bootCandidates[i]) then
-        Computer.shutdown()
-    end
+    boot(bootCandidates[i])
 end
-internet = gpu and screen and bootLoader() or error"No drives available"
+selectedElementsLine = gpu and screen and bootLoader() or error"No drives available"
