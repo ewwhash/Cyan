@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
+local bootFiles, bootCandidates, key, Unicode, Computer, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -59,10 +59,8 @@ local function sleep(timeout, breakCode, onBreak)
     until Computer.uptime() >= deadline
 end
 
-local eeprom, gpu, screen = proxy"pr"
-
-local function configureGPU(restorePalette)
-    gpu, screen = proxy"gp", component.list"sc"()
+local function configureSystem(restorePalette)
+    gpu, eeprom, screen = proxy"gp", proxy"pr", component.list"sc"()
 
     if gpu and screen then
         if restorePalette then
@@ -83,9 +81,13 @@ local function configureGPU(restorePalette)
             return 1
         end
     end
+
+    if not eeprom and 
 end
+configureSystem()
 
 local eepromData, eepromSetData = eeprom.getData(), eeprom.setData
+
 local function setData(data, overwrite)
     eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
     if eeprom then
@@ -95,16 +97,19 @@ end
 local function getData()
     return eepromData:match"[a-f-0-9]+" or eepromData
 end
+
 eeprom.setData = setData
 eeprom.getData = getData
 Computer.setBootAddress = setData
 Computer.getBootAddress = getData
+
 users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "")))) or {}
 requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
     users[users[i]], users[i] = 1, F
 end
+
 configureGPU()
 
 local function set(x, y, string, background, foreground)
@@ -246,7 +251,12 @@ local function addCandidate(address)
 
     if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
         bootCandidates[#bootCandidates + 1] = {
-            proxy, proxy.getLabel() or "N/A", address
+            proxy, proxy.getLabel() or "N/A", address, F, ("Disk usage %s%% / %s / %s")
+                :format(
+                    math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
+                    proxy.readOnly() and "Read only" or "Read & Write",
+                    proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
+                )
         }
 
         for i = 1, #bootFiles do
@@ -315,46 +325,7 @@ local function bootLoader()
     end
 
     do 
-        local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
-            return {
-                e = elements,
-                s = 1,
-                y = y,
-                k = onArrowKeyUpOrDown,
-                b = borderType,
-                d = function(SELF, withoutBorder, withoutSelect) -- draw()
-                    y = SELF.y
-                    borderType = SELF.b
-                    fill(1, y - 1, width, 3, " ", 0x002b36)
-                    selectedElementsLine = withoutSelect and selectedElementsLine or SELF
-                    local elementsAndBorderLength, borderSpaces, elementLength, x, selectedElement, element = 0, borderType == 1 and 6 or 8
-
-                    if onDraw then
-                        onDraw(SELF)
-                    end
-                    for i = 1, #SELF.e do
-                        elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
-                    end
-
-                    elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
-                    x = centrize(elementsAndBorderLength)
-
-                    for i = 1, #SELF.e do
-                        selectedElement, element = SELF.s == i and 1, SELF.e[i]
-                        elementLength = Unicode.len(element.t)
-
-                        if selectedElement and not withoutBorder then
-                            fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
-                            set(x, y, element.t, 0x8cb9c5, 0x002b36)
-                        else
-                            set(x, y, element.t, 0x002b36, 0x8cb9c5)
-                        end
-
-                        x = x + elementLength + borderSpaces
-                    end
-                end
-            }
-        end
+        local function createElements()
 
         options = createElements({
             {t = "Power off", a = function() Computer.shutdown() end},
@@ -416,13 +387,6 @@ local function bootLoader()
                 readOnly = proxy.isReadOnly()
                 fill(1, centerY + 5, width, 3, " ")
                 centrizedSet(centerY + 5, bootPreview(drive), F, 0xFFFFFF)
-                centrizedSet(centerY + 7, ("Disk usage %s%% / %s / %s")
-                    :format(
-                        math.floor(proxy.spaceUsed() / (spaceTotal / 100)),
-                        readOnly and "Read only" or "Read & Write",
-                        spaceTotal < 2 ^ 20 and "FDD" or spaceTotal < 2 ^ 20 * 12 and "HDD" or "RAID"
-                    )
-                )
 
                 for i = correction, #options.e do
                     options.e[i] = F
