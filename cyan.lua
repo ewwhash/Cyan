@@ -352,17 +352,6 @@ local function bootLoader()
 
                         x = x + elementLength + borderSpaces
                     end
-                end,
-                a = function(SELF, element)
-                    table.insert(SELF, element)
-                    SELF:d()
-                end,
-                r = function(SELF, index)
-                    table.remove(SELF.e, index)
-                    if SELF.s > #SELF.e then
-                        SELF.s = #SELF.e
-                    end
-                    SELF:d()
                 end
             }
         end
