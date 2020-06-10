@@ -59,31 +59,51 @@ local function sleep(timeout, breakCode, onBreak)
     until Computer.uptime() >= deadline
 end
 
-local gpu, eeprom, screen = proxy"gp" or {}, proxy"pr", component.list"sc"()
-local eepromData, setData = eeprom.getData(), eeprom.setData
-eeprom.setData = function(data, overwrite)
-    eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
-    setData(eepromData)
+local eeprom, gpu, screen = proxy"pr"
+
+local function configureGPU(restorePalette)
+    gpu, screen = proxy"gp", component.list"sc"()
+
+    if gpu and screen then
+        if restorePalette then
+            local gpuSet = gpu.set
+
+            gpu.set = function(...)
+                gpu.setPaletteColor(9, 0x969696)
+                gpu.setPaletteColor(11, 0xb4b4b4)
+                gpuSet(...)
+                gpu.set = gpuSet
+            end
+        else
+            gpu.bind((screen))
+            width, height = gpu.maxResolution()
+            centerY = height / 2
+            gpu.setPaletteColor(9, 0x002b36)
+            gpu.setPaletteColor(11, 0x8cb9c5)
+            return 1
+        end
+    end
 end
-eeprom.getData = function()
+
+local eepromData, setData = eeprom.getData(), eeprom.setData
+local function setData(data, overwrite)
+    eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
+    if eeprom then
+        setData(eepromData)
+    end
+end
+local function getData()
     return eepromData:match"[a-f-0-9]+" or eepromData
 end
-Computer.setBootAddress = eeprom.setData
-Computer.getBootAddress = eeprom.getData
+Computer.setBootAddress = setData
+Computer.getBootAddress = getData
 users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "")))) or {}
 requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
     users[users[i]], users[i] = 1, F
 end
-
-if gpu and screen then
-    gpu.bind((screen))
-    width, height = gpu.maxResolution()
-    centerY = height / 2
-    gpu.setPaletteColor(9, 0x002b36)
-    gpu.setPaletteColor(11, 0x8cb9c5)
-end
+configureGPU()
 
 local function set(x, y, string, background, foreground)
     gpu.setBackground(background or 0x002b36)
@@ -109,12 +129,11 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak, booting, err)
+local function status(text, title, wait, breakCode, onBreak, restorePalette, err)
     if gpu and screen then
         split(text)
-        local gpuSet, y = gpu.set, math.ceil(centerY - #lines / 2)
-        gpu.setPaletteColor(9, 0x002b36)
-        gpu.setPaletteColor(11, 0x8cb9c5)
+        local y = math.ceil(centerY - #lines / 2)
+        configureGPU()
         clear()
 
         if title then
@@ -126,22 +145,16 @@ local function status(text, title, wait, breakCode, onBreak, booting, err)
             centrizedSet(y, lines[i])
             y = y + 1
         end
-
-        if booting and gpu and screen then
-            gpu.set = function(...)
-                gpu.setPaletteColor(9, 0x969696)
-                gpu.setPaletteColor(11, 0xb4b4b4)
-                gpuSet(...)
-                gpu.set = gpuSet
-            end
-        end
-
+        
+        configureGPU(restorePalette)
         return sleep(wait or 0, breakCode, onBreak)
+    else
+        error(text)
     end
 end
 
 local function ERROR(err)
-    return gpu and screen and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1) or error(err)
+    status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1)
 end
 
 local function addCandidate(address)
@@ -244,17 +257,17 @@ end
 local function bootPreview(drive, booting)
     local address = cutText(drive[3], booting and 36 or 6)
     return drive[4] and ("Boot%s %s from %s (%s)")
-    :format(
-        booting and "ing" or "",
-        drive[4],
-        drive[2],
-        address
-    )
+        :format(
+            booting and "ing" or "",
+            drive[4],
+            drive[2],
+            address
+        )
     or ("Boot from %s (%s) is not available")
-    :format(
-        drive[2],
-        address
-    )
+        :format(
+            drive[2],
+            address
+        )
 end
 
 local function boot(drive)
@@ -288,56 +301,60 @@ local function boot(drive)
     end
 end
 
-local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
-    -- borderType - 1 == small border
-    -- borderType - 2 == big border
-
-    return {
-        e = elements,
-        s = 1,
-        y = y,
-        k = onArrowKeyUpOrDown,
-        b = borderType,
-        d = function(SELF, withoutBorder, withoutSelect) -- draw()
-            y = SELF.y
-            borderType = SELF.b
-            fill(1, y - 1, width, 3, " ", 0x002b36)
-            selectedElementsLine = withoutSelect and selectedElementsLine or SELF
-            local elementsAndBorderLength, borderSpaces, elementLength, x, selectedElement, element = 0, borderType == 1 and 6 or 8
-
-            if onDraw then
-                onDraw(SELF)
-            end
-
-            for i = 1, #SELF.e do
-                elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
-            end
-
-            elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
-            x = centrize(elementsAndBorderLength)
-
-            for i = 1, #SELF.e do
-                selectedElement, element = SELF.s == i and 1, SELF.e[i]
-                elementLength = Unicode.len(element.t)
-
-                if selectedElement and not withoutBorder then
-                    fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
-                    set(x, y, element.t, 0x8cb9c5, 0x002b36)
-                else
-                    set(x, y, element.t, 0x002b36, 0x8cb9c5)
-                end
-
-                x = x + elementLength + borderSpaces
-            end
-        end
-    }
-end
-
 local function bootLoader()
     userChecked = 1
     ::REFRESH::
     internet = proxy"et"
     updateCandidates()
+    if not configureGPU() then
+        goto MAIN_LOOP
+    end
+
+    local function createElements(elements, y, borderType, onArrowKeyUpOrDown, onDraw)
+        -- borderType - 1 == small border
+        -- borderType - 2 == big border
+
+        return {
+            e = elements,
+            s = 1,
+            y = y,
+            k = onArrowKeyUpOrDown,
+            b = borderType,
+            d = function(SELF, withoutBorder, withoutSelect) -- draw()
+                y = SELF.y
+                borderType = SELF.b
+                fill(1, y - 1, width, 3, " ", 0x002b36)
+                selectedElementsLine = withoutSelect and selectedElementsLine or SELF
+                local elementsAndBorderLength, borderSpaces, elementLength, x, selectedElement, element = 0, borderType == 1 and 6 or 8
+
+                if onDraw then
+                    onDraw(SELF)
+                end
+
+                for i = 1, #SELF.e do
+                    elementsAndBorderLength = elementsAndBorderLength + Unicode.len(SELF.e[i].t) + borderSpaces
+                end
+
+                elementsAndBorderLength = elementsAndBorderLength -  borderSpaces
+                x = centrize(elementsAndBorderLength)
+
+                for i = 1, #SELF.e do
+                    selectedElement, element = SELF.s == i and 1, SELF.e[i]
+                    elementLength = Unicode.len(element.t)
+
+                    if selectedElement and not withoutBorder then
+                        fill(x - borderSpaces / 2, y - (borderType == 1 and 0 or 1), elementLength + borderSpaces, borderType == 1 and 1 or 3, " ", 0x8cb9c5)
+                        set(x, y, element.t, 0x8cb9c5, 0x002b36)
+                    else
+                        set(x, y, element.t, 0x002b36, 0x8cb9c5)
+                    end
+
+                    x = x + elementLength + borderSpaces
+                end
+            end
+        }
+    end
+
     local env, signalType, code, data, options, drives, draw, drive, proxy, readOnly, newLabel, url, handle, chunk, correction, spaceTotal, _ = setmetatable({
         print = print,
         proxy = proxy,
@@ -352,14 +369,14 @@ local function bootLoader()
         {t = "Lua", a = function()
             clear()
 
-            ::LOOP::
+            ::LOOP_OPTIONS::
                 data = input("> ", 1, height, F, data)
 
                 if data then
                     print("> " .. data)
                     set(1, height, ">")
                     print(select(2, execute(data, "=stdin", env)))
-                    goto LOOP
+                    goto LOOP_OPTIONS
                 end
             draw(F, F, 1, 1)
         end},
@@ -376,13 +393,13 @@ local function bootLoader()
 
             if handle then
                 status("Downloading " .. url .. "...")
-                ::LOOP::
+                ::LOOP_NETBOOT::
 
                 chunk = handle.read()
 
                 if chunk then
                     data = data .. chunk
-                    goto LOOP
+                    goto LOOP_NETBOOT
                 end
 
                 handle.close()
@@ -465,10 +482,10 @@ local function bootLoader()
 
     draw(1, 1)
 
-    ::LOOP::
+    ::MAIN_LOOP::
         signalType, _, _, code = pullSignal()
 
-        if signalType == "key_down" then
+        if signalType == "key_down" and gpu and screen then
             if code == 200 then -- Up
                 selectedElementsLine.k()
             elseif code == 208 then -- Down
@@ -482,12 +499,12 @@ local function bootLoader()
             elseif code == 28 then -- Enter
                 selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
             end
-        elseif signalType:match"component" then
+        elseif signalType:match"mp" then
             goto REFRESH
         elseif signalType == "F" then
             Computer.shutdown()
         end
-    goto LOOP
+    goto MAIN_LOOP
 end
 
 updateCandidates()
