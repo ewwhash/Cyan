@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, proxyList, key, Unicode, Computer, invoke, eepromAddress, gpuAddress, screen, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, {}, unicode, computer, component.invoke, component.list"pr"(), component.list"gp"(), component.list"sc"()
+local bootFiles, bootCandidates, key, Unicode, Computer, invoke, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, gpuAddress, eepromData, eepromAddress = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -18,17 +18,12 @@ local function pullSignal(timeout)
 end
 
 local function arr2a_arr(tbl)
-    for i = #tbl, 1, -1 do
-        tbl[tbl[i]], tbl[i] = true, nil
+    tbl.n = 0
+
+    for i = 1, #tbl do
+        tbl[tbl[i]], tbl[i] = 1, F
+        tbl.n = tbl.n + 1
     end
-end
-
-function component.invoke(address, method, ...)
-    if address == eepromAddress and method == "getData" then
-
-    end
-
-    return invoke(address, method, ...)
 end
 
 local function execute(code, stdin, env)
@@ -68,50 +63,52 @@ local function sleep(timeout, breakCode, onBreak)
     until Computer.uptime() >= deadline
 end
 
-local function configureSystem(restorePalette)
-    if gpu and screen then
-        if restorePalette then
-            local gpuSet = gpu.set
+local function proxy(componentType)
+    local address = component.list(componentType)()
+    return address and component.proxy(address)
+end
 
-            gpu.set = function(...)
-                gpu.setPaletteColor(9, 0x969696)
-                gpu.setPaletteColor(11, 0xb4b4b4)
-                gpuSet(...)
-                gpu.set = gpuSet
-            end
-        elseif gpu then
-            gpu.bind((screen))
-            width, height = gpu.maxResolution()
-            centerY = height / 2
-            gpu.setPaletteColor(9, 0x002b36)
-            gpu.setPaletteColor(11, 0x8cb9c5)
-            return 1
+local function configureGPU()
+    gpu = proxy"gp"
+
+    if gpu and component.list"sc"() then
+        gpu.bind((component.list"sc"()))
+        gpu.setPaletteColor(9, 0x002b36)
+        gpu.setPaletteColor(11, 0x8cb9c5)
+        gpuAddress = gpu.address
+        width, height = gpu.maxResolution()
+        centerY = height / 2
+        return 1
+    end
+end
+
+eeprom = proxy"pr"
+eepromData = eeprom.getData()
+configureGPU()
+
+function component.invoke(address, method, ...)
+    if address == eepromAddress then
+        if method == "getData" then
+            return eepromData:match"[a-f-0-9]+" or eepromData
+        elseif method == "setData" then
+            eepromData = ({...})[2] and ({...})[1] or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", ({...})[2]) or ({...})[2])
         end
+    elseif address == gpuAddress and method == "bind" then
+        gpu.setPaletteColor(9, 0x969696)
+        gpu.setPaletteColor(11, 0xb4b4b4)
     end
+
+    return invoke(address, method, ...)
 end
 
-configureSystem()
-local eepromData, eepromSetData = eeprom.getData(), eeprom.setData
+Computer.setBootAddress = eeprom.getData
+Computer.getBootAddress = eeprom.setData
 
-local function setData(data, overwrite)
-    eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
-    if eeprom then
-        eepromSetData(eepromData)
-    end
-end
-local function getData()
-    return eepromData:match"[a-f-0-9]+" or eepromData
-end
-
-Computer.setBootAddress = setData
-Computer.getBootAddress = getData
-
-users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "")))) or {}
+users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "{}"))))
 requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
-for i = 1, #users do
-    users[users[i]], users[i] = 1, F
-end
+arr2a_arr(users)
+arr2a_arr(bootFiles)
 
 configureGPU()
 
