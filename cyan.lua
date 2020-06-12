@@ -428,6 +428,14 @@ local function bootloader()
         {"Power off", Computer.shutdown},
         {"Lua", function()
             clear()
+            env = setmetatable({
+                print = print,
+                proxy = proxy,
+                os = {
+                    sleep = function(timeout) sleep(timeout) end
+                },
+                read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data) return data end
+            }, {__index = _G})
 
             ::LOOP::
                 data = input("> ", 1, height, F, data)
