@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, invoke, selectedElementsLine, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen, gpuAddress, eepromData, eepromAddress = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, invoke, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen, internet, gpuAddress, eepromAddress, eepromData = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -68,8 +68,10 @@ local function proxy(componentType)
     return address and component.proxy(address)
 end
 
-local function configureGPU()
-    gpu, screen = proxy"gp", component.list"sc"()
+local function configureSystem()
+    gpu, eeprom, internet, screen = proxy"gp", proxy"pr", proxy"in", component.list"sc"()
+    eepromAddress = eeprom.address
+    eepromData = eeprom.getData()
 
     if gpu and screen then
         gpu.bind((screen))
@@ -82,11 +84,9 @@ local function configureGPU()
     end
 end
 
-eeprom = proxy"pr"
-eepromData = eeprom.getData()
+configureSystem()
 users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "{}"))))
 requestUserPressOnBoot = eepromData:match"*"
-configureGPU()
 arr2a_arr(users)
 arr2a_arr(bootFiles)
 
@@ -133,9 +133,8 @@ local function centrizedSet(y, text, background, foreground)
 end
 
 local function status(text, title, wait, breakCode, onBreak, restorePalette)
-    if gpu and screen then
+    if configureSystem() then
         split(text)
-        configureGPU()
         clear()
         local y = math.ceil(centerY - #lines / 2)
 
@@ -148,10 +147,28 @@ local function status(text, title, wait, breakCode, onBreak, restorePalette)
             y = y + 1
         end
 
-        configureGPU(restorePalette)
         return sleep(wait or 0, breakCode, onBreak)
     else
         error(text)
+    end
+end
+
+local function internetBoot(url, shutdown)
+    local handle, data, chunk = internet.request(url), ""
+
+    if handle then
+        status("Downloading " .. url .. "...")
+        ::LOOP::
+        chunk = handle.read()
+
+        if chunk then
+            data = data .. chunk
+            goto LOOP
+        end
+
+        status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot:", math.huge, 0)
+    else
+        status("Invalid URL", "Internet boot:", math.huge, 0, shutdown and Computer.shutdown)
     end
 end
 
@@ -226,48 +243,55 @@ local function print(...)
     end
 end
 
-local function bootPreview(drive, booting)
-    if drive[6] then
+local function bootPreview(image, booting)
+    if image[6] then
         return ("Boot%s %s from %s")
             :format(
                 booting and "ing" or "",
-                drive[3],
-                drive[2]
+                image[3],
+                image[2]
             )
     else
-        local address = cutText(drive[3], booting and 36 or 6)
-        return drive[4] and ("Boot%s %s from %s (%s)")
+        local address = cutText(image[3], booting and 36 or 6)
+        return image[4] and ("Boot%s %s from %s (%s)")
             :format(
                 booting and "ing" or "",
-                drive[4],
-                drive[2],
+                image[4],
+                image[2],
                 address
             )
         or  ("Boot from %s (%s) is not available")
             :format(
-                drive[2],
+                image[2],
                 address
             )
     end
 end
 
 local function addCandidate(address)
-    if address:match("http") then
+    if address:match("http") and internet then
         bootCandidates[#bootCandidates + 1] = {
-            F, "Netboot", address, F, "", 1
-        } 
+            F, "Net", address, F,
+        }
     else
         local proxy = component.proxy(address)
 
         if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
             bootCandidates[#bootCandidates + 1] = {
-                proxy, proxy.getLabel() or "N/A", address, F, ("Disk usage %s%% / %s / %s")
+                                                        -- 1  2  3
+                proxy, proxy.getLabel() or "N/A", address, F, F, F, ("Disk usage %s%% / %s / %s")
                     :format(
                         math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
                         proxy.readOnly() and "Read only" or "Read & Write",
                         proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
                     )
             }
+
+            -- 1 - boot file(4)
+            -- 2 - cutted text(5)
+            -- 3 - HTTP(6)
+
+            bootCandidates[#bootCandidates][5] = cutText(bootCandidates[#bootCandidates][2], 6)
 
             for i = 1, #bootFiles do
                 if proxy.exists(bootFiles[i]) then
@@ -288,26 +312,26 @@ local function updateCandidates()
     end
 end
 
-local function boot(drive)
-    if drive[4] then
-        local handle, data, chunk, success, err, boot = drive[1].open(drive[4], "r"), ""
+local function boot(image)
+    if image[4] then
+        local handle, data, chunk, success, err, boot = image[1].open(image[4], "r"), ""
 
         ::LOOP::
-        chunk = drive[1].read(handle, math.huge)
+        chunk = image[1].read(handle, math.huge)
 
         if chunk then
             data = data .. chunk
             goto LOOP
         end
 
-        drive[1].close(handle)
+        image[1].close(handle)
 
         boot = function()
-            status(bootPreview(drive, 1), F, .5, F, F, 1)
-            if eeprom.getData() ~= drive[3] then
-                eeprom.setData(drive[3])
+            status(bootPreview(image, 1), F, .5, F, F, 1)
+            if eeprom.getData() ~= image[3] then
+                eeprom.setData(image[3])
             end
-            success, err = execute(data, "=" .. drive[4])
+            success, err = execute(data, "=" .. image[4])
             status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1)
             Computer.shutdown()
         end
@@ -316,56 +340,118 @@ local function boot(drive)
     end
 end
 
-local function bootLoader()
+local function bootloader()
     userChecked = 1
-    ::REFRESH::
+    ::UPDATE::
+    local env, main, signalType, code, correction
     updateCandidates()
+    configureSystem()
 
-    local env, signalType, code, data, options, drives, draw, drive, proxy, readOnly, newLabel, url, handle, chunk, correction, spaceTotal, _ = setmetatable({
-        print = print,
-        proxy = proxy,
-        os = {
-            sleep = function(timeout) sleep(timeout) end
-        },
-        read = function(lastInput) print(" ") local data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data) return data end
-    }, {__index = _G})
+    local function createWorkspace()
+        return {
+            w = 1,
+            s = 1,
+            e = {},
+            d = function(SELF)
+                for i = 1, #SELF.e do
+                    SELF.e[i]:d(SELF.s == i)
+                end
+            end,
+            l = function(SELF)
+                while SELF.w do
+                    signalType, _, _, code = pullSignal()
+                    local selectedElementsLine = SELF.e[SELF.s]
 
-    if not configureGPU() then
-        goto LOOP
-    end
-
-    do
-        
-    end
-
-    ::LOOP::
-        signalType, _, _, code = pullSignal()
-
-        if signalType == "key_down" and gpu then
-            if code == 200 then -- Up
-                selectedElementsLine.k()
-            elseif code == 208 then -- Down
-                selectedElementsLine.k()
-            elseif code == 203 then -- Left
-                selectedElementsLine.s = selectedElementsLine.s > 1 and selectedElementsLine.s - 1 or #selectedElementsLine.e
-                selectedElementsLine:d()
-            elseif code == 205 then -- Right
-                selectedElementsLine.s = selectedElementsLine.s < #selectedElementsLine.e and selectedElementsLine.s + 1 or 1
-                selectedElementsLine:d()
-            elseif code == 28 then -- Enter
-                selectedElementsLine.e[selectedElementsLine.s].a(selectedElementsLine)
+                    if signalType == "key_down" and gpu and screen then
+                        if code == 200 then -- Up
+                            SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
+                        elseif code == 208 then -- Down
+                            SELF.s = SELF.s < #SELF.e and SELF.s + 1 or 1
+                        elseif code == 203 then -- Left
+                            selectedElementsLine.s = selectedElementsLine.s > 1 and selectedElementsLine.s - 1 or #selectedElementsLine.e
+                            selectedElementsLine:d()
+                        elseif code == 205 then -- Right
+                            selectedElementsLine.s = selectedElementsLine.s < #selectedElementsLine.e and selectedElementsLine.s + 1 or 1
+                            selectedElementsLine:d()
+                        elseif code == 28 then -- Enter
+                            selectedElementsLine.e[selectedElementsLine.s].a()
+                        end
+                    elseif signalType:match"mp" then
+                        break
+                    elseif signalType == "F" then
+                        SELF.w = F
+                    end
+                end
             end
-        elseif signalType:match"mp" then
-            goto REFRESH
-        elseif signalType == "F" then
-            Computer.shutdown()
-        end
-    goto LOOP
+        }
+    end
+
+    local function createElements(workspace, elements, y, spaces, borderHeight)
+        table.insert(workspace.e, {
+            s = 1,
+            y = y,
+            e = elements,
+            d = function(SELF, drawSelected)
+                local elementsLineLength, x = 0
+
+                for i = 1, #SELF.e do
+                    SELF.e[i][3] = type(SELF.e[i][1]):match("fu") and SELF.e[i][1]() or SELF.e[i][1]
+                    elementsLineLength = elementsLineLength + Unicode.len(SELF.e[i][3]) + spaces
+                end
+
+                elementsLineLength = elementsLineLength - spaces
+                x = centrize(elementsLineLength)
+
+                for i = 1, #SELF.e do
+                    if SELF.s == i and drawSelected then
+                        fill(x - spaces / 2, SELF.y - math.floor(borderHeight / 2), Unicode.len(SELF.e[i][3]) + spaces, borderHeight, " ", 0x8cb9c5)
+                        set(x, SELF.y, SELF.e[i][3], 0x8cb9c5, 0x002b36)
+                    else
+                        set(x, SELF.y, SELF.e[i][3], 0x002b36, 0x8cb9c5)
+                    end
+
+                    x = x + Unicode.len(SELF.e[i][3])
+                end
+            end
+        })
+
+        return #elements
+    end
+
+    main = createWorkspace()
+    if #bootCandidates > 0 then
+        createElements(main, {}, centerY)
+    end
+    correction = createElements(main, {
+        {"Power off", Computer.shutdown},
+        {"Lua"},
+        internet and {"Internet boot"} or F
+    }, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3)
+    for i = 1, #bootCandidates do
+        main.e[1].e[i] = {
+            function()
+                return bootCandidates[i][6]
+            end,
+
+            function()
+                for i = correction, #main.e[2].e do
+                    main.e[2].e[i] = F
+                end
+
+                main.e[2].e[i]
+            end
+        }
+    end
+    main:l()
+
+    if main.w then
+        goto UPDATE
+    end
 end
 
 updateCandidates()
-status("Hold CTRL to stay in bootloader", F, .9, 29, bootLoader)
+status("Hold CTRL to stay in bootloader", F, .9, 29, function() bootloader() Computer.shutdown() end)
 for i = 1, #bootCandidates do
     boot(bootCandidates[i])
 end
-selectedElementsLine = gpu and screen and bootLoader() or error"No drives available"
+gpuAddress = configureSystem() and bootloader() or error"No drives available"
