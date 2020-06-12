@@ -48,6 +48,12 @@ local function split(text, tabulate)
     end
 end
 
+local function action(func, ...)
+    if func and type(func):match("fu") then
+        return func(...)
+    end
+end
+
 local function sleep(timeout, breakCode, onBreak)
     local deadline, signalType, code, _ = Computer.uptime() + (timeout or math.huge)
 
@@ -55,9 +61,7 @@ local function sleep(timeout, breakCode, onBreak)
         signalType, _, _, code = pullSignal(deadline - Computer.uptime())
 
         if signalType == "F" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
-            if onBreak then
-                onBreak()
-            end
+            action(onBreak)
             return 1
         end
     until Computer.uptime() >= deadline
@@ -132,7 +136,7 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak, restorePalette)
+local function status(text, title, wait, breakCode, onBreak)
     if configureSystem() then
         split(text)
         clear()
@@ -246,58 +250,52 @@ local function print(...)
 end
 
 local function bootPreview(image, booting)
-    if image[6] then
+    if image[7] then
         return ("Boot%s %s from %s")
-            :format(
-                booting and "ing" or "",
-                image[3],
-                image[2]
-            )
+        :format(
+            booting and "ing" or "",
+            image[3],
+            image[2]
+        )
     else
         local address = cutText(image[3], booting and 36 or 6)
-        return image[4] and ("Boot%s %s from %s (%s)")
-            :format(
-                booting and "ing" or "",
-                image[4],
-                image[2],
-                address
-            )
-        or  ("Boot from %s (%s) is not available")
-            :format(
-                image[2],
-                address
-            )
+        return image[6] and
+        ("Boot%s %s from %s (%s)"):format(
+            booting and "ing" or "",
+            image[6],
+            image[2],
+            address
+        )
+        or ("Boot from %s (%s) is not available"):format(
+            image[2],
+            address
+        )
     end
 end
 
 local function addCandidate(address)
     if address:match("http") and internet then
         bootCandidates[#bootCandidates + 1] = {
-            F, "Net", address, F,
+            F, "Net", address, "Net", "", F, 1
         }
     else
         local proxy = component.proxy(address)
 
         if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
             bootCandidates[#bootCandidates + 1] = {
-                                                        -- 1  2  3
-                proxy, proxy.getLabel() or "N/A", address, F, F, F, ("Disk usage %s%% / %s / %s")
-                    :format(
-                        math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
-                        proxy.readOnly() and "Read only" or "Read & Write",
-                        proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
-                    )
+                proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s")
+                :format(
+                    math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
+                    proxy.isReadOnly() and "Read only" or "Read & Write",
+                    proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
+                )
             }
-
-            -- 1 - boot file(4)
-            -- 2 - cutted text(5)
-            -- 3 - HTTP(6)
-
-            bootCandidates[#bootCandidates][5] = cutText(bootCandidates[#bootCandidates][2], 6)
+            -- boot file(6)
+            -- HTTP(7)
 
             for i = 1, #bootFiles do
                 if proxy.exists(bootFiles[i]) then
-                    bootCandidates[#bootCandidates][4] = bootFiles[i]
+                    bootCandidates[#bootCandidates][5] = bootFiles[i]
                     break
                 end
             end
@@ -315,8 +313,8 @@ local function updateCandidates()
 end
 
 local function boot(image)
-    if image[4] then
-        local handle, data, chunk, success, err, boot = image[1].open(image[4], "r"), ""
+    if image[6] then
+        local handle, data, chunk, success, err, boot = image[1].open(image[6], "r"), ""
 
         ::LOOP::
         chunk = image[1].read(handle, math.huge)
@@ -329,12 +327,12 @@ local function boot(image)
         image[1].close(handle)
 
         boot = function()
-            status(bootPreview(image, 1), F, .5, F, F, 1)
+            status(bootPreview(image, 1), F, .5, F, F)
             if eeprom.getData() ~= image[3] then
                 eeprom.setData(image[3])
             end
-            success, err = execute(data, "=" .. image[4])
-            status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, 1)
+            success, err = execute(data, "=" .. image[6])
+            status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown)
             Computer.shutdown()
         end
 
@@ -345,9 +343,8 @@ end
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local env, main, signalType, code, correction, newLabel
+    local env, main, signalType, code, correction, newLabel, _
     updateCandidates()
-    configureSystem()
 
     local function createWorkspace()
         return {
@@ -371,9 +368,11 @@ local function bootloader()
                             SELF.s = SELF.s < #SELF.e and SELF.s + 1 or 1
                         elseif code == 203 then -- Left
                             selectedElementsLine.s = selectedElementsLine.s > 1 and selectedElementsLine.s - 1 or #selectedElementsLine.e
+                            action(selectedElementsLine.o, selectedElementsLine)
                             selectedElementsLine:d()
                         elseif code == 205 then -- Right
                             selectedElementsLine.s = selectedElementsLine.s < #selectedElementsLine.e and selectedElementsLine.s + 1 or 1
+                            action(selectedElementsLine.o, selectedElementsLine)
                             selectedElementsLine:d()
                         elseif code == 28 then -- Enter
                             selectedElementsLine.e[selectedElementsLine.s].a()
@@ -388,16 +387,17 @@ local function bootloader()
         }
     end
 
-    local function createElements(workspace, elements, y, spaces, borderHeight)
+    local function createElements(workspace, elements, onDraw, y, spaces, borderHeight)
         table.insert(workspace.e, {
             s = 1,
             y = y,
             e = elements,
+            o = onDraw,
             d = function(SELF, drawSelected)
                 local elementsLineLength, x = 0
 
                 for i = 1, #SELF.e do
-                    SELF.e[i][3] = type(SELF.e[i][1]):match("fu") and SELF.e[i][1]() or SELF.e[i][1]
+                    SELF.e[i][3] = action(SELF.e[i][1]) or SELF.e[i][1]
                     elementsLineLength = elementsLineLength + Unicode.len(SELF.e[i][3]) + spaces
                 end
 
@@ -422,7 +422,45 @@ local function bootloader()
 
     main = createWorkspace()
     if #bootCandidates > 0 then
-        createElements(main, {}, centerY)
+        createElements(main, {}, F, centerY, 8, 3)
+        for i = 1, #bootCandidates do
+            main.e[1].e[i] = {
+                function()
+                    return bootCandidates[i][4]
+                end,
+
+                function()
+                    boot(bootCandidates[i])
+                end
+            }
+        end
+        main.e[1].o = function(SELF)
+            for j = correction, #SELF.e do
+                SELF.e[j] = F
+            end
+
+            if bootCandidates[SELF.s][1].isReadOnly() then
+                SELF.s = SELF.s> #SELF.e and #SELF.e or SELF.s
+            else
+                SELF.e[correction] = {
+                    "Rename", function()
+                        newLabel = input("New label: ", F, centerY + 7, 1)
+
+                        if #newLabel > 0 then
+                            pcall(bootCandidates[SELF.s][1].setLabel, newLabel)
+                            updateCandidates()
+                            main:d()
+                        end
+                    end,
+                }
+                SELF.e[correction + 1] = {
+                    "Format", function()
+                        bootCandidates[SELF.s][1].remove("/")
+                        main:d()
+                    end
+                }
+            end
+        end
     end
     correction = createElements(main, {
         {"Power off", Computer.shutdown},
@@ -449,45 +487,12 @@ local function bootloader()
             main:d()
         end},
         internet and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
-    }, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3)
-    for i = 1, #bootCandidates do
-        main.e[1].e[i] = {
-            function()
-                return bootCandidates[i][6]
-            end,
-
-            function()
-                for j = correction, #main.e[2].e do
-                    main.e[2].e[j] = F
-                end
-
-                if bootCandidates[i].isReadOnly() then
-                    main.e[2].s = main.e[2].s> #main.e[2].e and #main.e[2].e or main.e[2].s
-                else
-                    main.e[2].e[correction] = {
-                        "Rename", function()
-                            newLabel = input("New label: ", F, centerY + 7, 1)
-
-                            if #newLabel > 0 then
-                                pcall(bootCandidates[i][1].setLabel, newLabel)
-                                updateCandidates()
-                                main:d()
-                            end
-                        end,
-                    }
-                    main.e[2].e[correction + 1] = {
-                        "Format", function()
-                            bootCandidates[i][1].remove("/")
-                            main:d()
-                        end
-                    }
-                end
-            end
-        }
-    end
+    }, F, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3)
+    main:d()
     main:l()
 
     if main.w then
+        configureSystem()
         goto UPDATE
     end
 end
