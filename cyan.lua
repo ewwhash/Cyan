@@ -154,21 +154,23 @@ local function status(text, title, wait, breakCode, onBreak, restorePalette)
 end
 
 local function internetBoot(url, shutdown)
-    local handle, data, chunk = internet.request(url), ""
+    if #url > 0 then
+        local handle, data, chunk = internet.request(url), ""
 
-    if handle then
-        status("Downloading " .. url .. "...")
-        ::LOOP::
-        chunk = handle.read()
+        if handle then
+            status("Downloading " .. url .. "...")
+            ::LOOP::
+            chunk = handle.read()
 
-        if chunk then
-            data = data .. chunk
-            goto LOOP
+            if chunk then
+                data = data .. chunk
+                goto LOOP
+            end
+
+            status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot:", math.huge, 0)
+        else
+            status("Invalid URL", "Internet boot:", math.huge, 0, shutdown and Computer.shutdown)
         end
-
-        status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot:", math.huge, 0)
-    else
-        status("Invalid URL", "Internet boot:", math.huge, 0, shutdown and Computer.shutdown)
     end
 end
 
@@ -343,7 +345,7 @@ end
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local env, main, signalType, code, correction
+    local env, main, signalType, code, correction, newLabel
     updateCandidates()
     configureSystem()
 
@@ -424,8 +426,21 @@ local function bootloader()
     end
     correction = createElements(main, {
         {"Power off", Computer.shutdown},
-        {"Lua"},
-        internet and {"Internet boot"} or F
+        {"Lua", function()
+            clear()
+
+            ::LOOP::
+                data = input("> ", 1, height, F, data)
+
+                if data then
+                    print("> " .. data)
+                    set(1, height, ">")
+                    print(select(2, execute(data, "=stdin", env)))
+                    goto LOOP
+                end
+            main:d()
+        end},
+        internet and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
     }, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3)
     for i = 1, #bootCandidates do
         main.e[1].e[i] = {
@@ -434,11 +449,31 @@ local function bootloader()
             end,
 
             function()
-                for i = correction, #main.e[2].e do
-                    main.e[2].e[i] = F
+                for j = correction, #main.e[2].e do
+                    main.e[2].e[j] = F
                 end
 
-                main.e[2].e[i]
+                if bootCandidates[i].isReadOnly() then
+                    main.e[2].s = main.e[2].s> #main.e[2].e and #main.e[2].e or main.e[2].s
+                else
+                    main.e[2].e[correction] = {
+                        "Rename", function()
+                            newLabel = input("New label: ", F, centerY + 7, 1)
+
+                            if #newLabel > 0 then
+                                pcall(bootCandidates[i][1].setLabel, newLabel)
+                                updateCandidates()
+                                main:d()
+                            end
+                        end,
+                    }
+                    main.e[2].e[correction + 1] = {
+                        "Format", function()
+                            bootCandidates[i][1].remove("/")
+                            main:d()
+                        end
+                    }
+                end
             end
         }
     end
