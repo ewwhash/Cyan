@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen, internet, gpuAddress, eepromAddress, eepromSetData, eepromData = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen, internet, gpuAddress, eepromAddress, eepromData = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -59,14 +59,14 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local function proxy(componentType)
-    return component.list(componentType)() and component.proxy(component.list(componentType)())
+    return Component.list(componentType)() and Component.proxy(Component.list(componentType)())
 end
 
 local function configureSystem()
-    gpu, eeprom, internet, screen = proxy"gp", proxy"pr", proxy"in", component.list"sc"()
+    gpu, eeprom, internet, screen = proxy"gp", proxy"pr", proxy"in", Component.list"sc"()
 
     if eeprom then
-        eepromAddress, eepromData, eeprom.setData = eeprom.address, eeprom.getData()
+        eepromAddress, eepromData = eeprom.address, eeprom.getData()
     end
 
     if gpu and screen then
@@ -89,36 +89,25 @@ for i = 1, #users do
     users.n = users.n + 1
 end
 
-local function getData()
-    return eepromData:match"[a-f-0-9]+" or eepromData
-end
-
-local function setData(data, overwrite)
-    eepromData = overwrite and data or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", data) or data)
-
-    if eeprom then
-        eeprom.setData(data)
-    end
-end
-
-function component.invoke(address, method, ...)
+function Component.invoke(address, method, ...)
     if address == eepromAddress then
         if method == "setData" then
-            setData()
+            eepromData = ({...})[2] and (...) or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", (...)) or (...))
+            return
         elseif method == "getData" then
-            return getData()
+            return eepromData:match"[a-f-0-9]+" or eepromData
         end
     elseif address == gpuAddress and method == "bind" and running then
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
         gpu.bind(...)
-    else
-        return invoke(address, method, ...)
     end
+        
+    return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = setData
-Computer.getBootAddress = getData
+Computer.setBootAddress = eeprom.setData
+Computer.getBootAddress = eeprom.getData
 
 local function set(x, y, string, background, foreground)
     gpu.setBackground(background or 0x002b36)
@@ -160,8 +149,6 @@ local function status(text, title, wait, breakCode, onBreak)
         end
 
         return sleep(wait or 0, breakCode, onBreak)
-    else
-        error(text)
     end
 end
 
@@ -271,17 +258,19 @@ local function bootPreview(image, booting)
 end
 
 local function addCandidate(address)
-    if component.proxy(address) and component.proxy(address).spaceTotal and address ~= Computer.tmpAddress() then
+    if address:match("http") and internet then
         bootCandidates[#bootCandidates + 1] = {
-            component.proxy(address), component.proxy(address).getLabel() or "N/A", address, cutText(component.proxy(address).getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s")
+            F, "Net", address, "Net", "", F, 1
+        }
+    elseif Component.proxy(address) and Component.proxy(address).spaceTotal and address ~= Computer.tmpAddress() then
+        bootCandidates[#bootCandidates + 1] = {
+            Component.proxy(address), Component.proxy(address).getLabel() or "N/A", address, cutText(Component.proxy(address).getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s")
             :format(
-                math.floor(component.proxy(address).spaceUsed() / (component.proxy(address).spaceTotal() / 100)),
-                component.proxy(address).isReadOnly() and "Read only" or "Read & Write",
-                component.proxy(address).spaceTotal() < 2 ^ 20 and "FDD" or component.proxy(address).spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
+                math.floor(Component.proxy(address).spaceUsed() / (Component.proxy(address).spaceTotal() / 100)),
+                Component.proxy(address).isReadOnly() and "Read only" or "Read & Write",
+                Component.proxy(address).spaceTotal() < 2 ^ 20 and "FDD" or Component.proxy(address).spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
         }
-        -- boot file(6)
-        -- HTTP(7)
 
         for i = 1, #bootFiles do
             bootCandidates[#bootCandidates][6] = bootFiles[i]
@@ -292,10 +281,10 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(getData() or computer.getBootAddress())
+    addCandidate(eeprom.getData() or computer.getBootAddress())
 
-    for filesystem in pairs(component.list"f") do
-        addCandidate(getData() ~= filesystem and filesystem or "")
+    for filesystem in pairs(Component.list"f") do
+        addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
     end
 end
 
@@ -315,13 +304,13 @@ local function boot(image)
 
         boot = function()
             status(bootPreview(image, 1), F, .5, F, F)
-            if getData() ~= image[3] then
-                setData(image[3])
+            if eeprom.getData() ~= image[3] then
+                eeprom.setData(image[3])
             end
             running = 1
             success, err = execute(data, "=" .. image[6])
             running = F
-            status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown)
+            running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
             Computer.shutdown()
         end
 
@@ -332,7 +321,6 @@ end
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    clear()
     local env, main, signalType, code, correction, newLabel, data, _
     updateCandidates()
 
@@ -376,10 +364,12 @@ local function bootloader()
             e = {},
             o = onDraw,
             d = function(SELF)
-                clear()
-                action(SELF.o, SELF)
-                for i = 1, #SELF.e do
-                    SELF.e[i]:d(SELF.s == i)
+                if gpu and screen then
+                    clear()
+                    action(SELF.o, SELF)
+                    for i = 1, #SELF.e do
+                        SELF.e[i]:d(SELF.s == i)
+                    end
                 end
             end,
             l = function(SELF)
@@ -387,7 +377,7 @@ local function bootloader()
                     SELF:d()
                     signalType, _, _, code = pullSignal()
 
-                    if signalType == "key_down" and gpu and screen then
+                    if signalType == "key_down" then
                         if code == 200 then -- Up
                             SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
                         elseif code == 208 then -- Down
