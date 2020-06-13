@@ -272,7 +272,7 @@ local function updateCandidates()
     bootCandidates = {}
     addCandidate(Computer.getBootAddress())
     for address in next, Component.list"f" do
-        addCandidate(address ~= computer.getBootAddress() and address or "")
+        addCandidate(address ~= Computer.getBootAddress() and address or "")
     end
 end
 
