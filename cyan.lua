@@ -168,9 +168,9 @@ local function internetBoot(url, shutdown)
                 goto LOOP
             end
 
-            status(select(2, execute(data, "=stdin")) or "is empty", "Internet boot:", math.huge, 0)
+            status(select(2, execute(data, "=stdin")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
         else
-            status("Invalid URL", "Internet boot:", math.huge, 0, shutdown and Computer.shutdown)
+            status("Invalid URL", [[¯\_(ツ)_/¯]], math.huge, 0, shutdown and Computer.shutdown)
         end
     end
 end
