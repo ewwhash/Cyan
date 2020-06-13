@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, gpu, eeprom, eepromData, needUpdate = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
@@ -31,6 +31,10 @@ local function execute(code, stdin, env)
     end
 end
 
+local function proxy(componentType)
+    return Component.list(componentType)() and Component.proxy(Component.list(componentType)())
+end
+
 local function split(text, tabulate)
     lines = {}
 
@@ -60,14 +64,15 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local function configureSystem()
-    gpu, eeprom, screen = Component.list"gp"(), Component.list"pr"(), Component.list"sc"()
+    gpu, internet, eeprom, screen = proxy"gp", proxy"in", Component.list"pr"(), Component.list"sc"()
     eepromData = eeprom and invoke(eeprom, "getData")
 
     if gpu and screen then
-        invoke(gpu, "bind", (screen))
-        invoke(gpu, "setPaletteColor", 9, 0x002b36)
-        invoke(gpu, "setPaletteColor", 11, 0x8cb9c5)
-        width, height = invoke(gpu, "maxResolution")
+        gpu.bind((screen))
+        gpu.setPaletteColor(9, 0x002b36)
+        gpu.setPaletteColor(11, 0x8cb9c5)
+        width, height = gpu.maxResolution
+        gpuAddress = gpu.address
         centerY = height / 2
         return 1
     end
@@ -91,8 +96,8 @@ function Component.invoke(address, method, ...)
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
     elseif address == gpu and method == "bind" and running then
-        invoke(gpu, "setPaletteColor", 9, 0x969696)
-        invoke(gpu, "setPaletteColor", 11, 0xb4b4b4)
+        gpu.setPaletteColor(9, 0x969696)
+        gpu.setPaletteColor(11, 0xb4b4b4)
     end
 
     return invoke(address, method, ...)
@@ -102,15 +107,15 @@ Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setDat
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
-    invoke(gpu, "setBackground", background or 0x002b36)
-    invoke(gpu, "setForeground", foreground or 0x8cb9c5)
-    invoke(gpu, "set", x, y, string)
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
+    gpu.set(x, y, string)
 end
 
 local function fill(x, y, w, h, background, foreground)
-    invoke(gpu, "setBackground", background or 0x002b36)
-    invoke(gpu, "setForeground", foreground or 0x8cb9c5)
-    invoke(gpu, "fill", x, y, w, h, " ")
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
+    gpu.fill(x, y, w, h, " ")
 end
 
 local function clear()
@@ -142,11 +147,11 @@ local function status(text, title, wait, breakCode, onBreak)
 
         return sleep(wait or 0, breakCode, onBreak)
     end
-end 
+end
 
 local function internetBoot(url, shutdown)
     if url and #url > 0 then
-        local handle, data, chunk = invoke(Component.list"in"(), "request", url, F, F, {["user-agent"]="Net"}), ""
+        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Net"}), ""
 
         if handle then
             status"Downloading..."
@@ -212,7 +217,7 @@ local function input(prefix, X, y, centrized, lastInput)
     fill(1, y, width, 1)
     set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
     if cursorX <= width then
-        set(cursorX, y, invoke(gpu, "get", cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
+        set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
     end
     goto LOOP
 end
@@ -225,7 +230,7 @@ local function print(...)
     split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
-        invoke(gpu, "copy", 1, 1, width, height - 1, 0, -1)
+        gpu.copy(1, 1, width, height - 1, 0, -1)
         fill(1, height - 1, width, 1)
         set(1, height - 1, lines[i])
     end
@@ -249,19 +254,21 @@ local function bootPreview(image, booting)
 end
 
 local function addCandidate(address)
-    bootCandidates[#bootCandidates + 1] = address:match("http") and Component.list"in"()
+    local proxy = component.proxy(address)
+
+    bootCandidates[#bootCandidates + 1] = address:match("http") and internet
         and {F, address, "Net", "", F, 1}
-        or Component.type(address) and Component.type(address):match"f" and address ~= Computer.tmpAddress()
+        or proxy and proxy.spaceTotal and address ~= Computer.tmpAddress()
         and {
-            invoke(address, "getLabel") or "N/A", address, cutText(invoke(address, "getLabel") or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
-                math.floor(invoke(address, "spaceUsed") / (invoke(address, "spaceTotal") / 100)),
-                invoke(address, "isReadOnly") and "Read only" or "Read & Write",
-                invoke(address, "spaceTotal") < 2 ^ 20 and "FDD" or invoke(address, "spaceTotal") < 2 ^ 20 * 12 and "HDD" or "RAID"
+            proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
+                math.floor(proxy.spaceUsed / (proxy.spaceTotal() / 100)),
+                proxy.isReadOnly() and "Read only" or "Read & Write",
+                proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
-        }
+        } or F
 
     for i = 1, #bootFiles do
-        if Component.type(address) and Component.type(address):match"f" and invoke(address, "exists", bootFiles[i]) then
+        if proxy.spaceTotal and proxy.exists(bootFiles[i]) then
             bootCandidates[#bootCandidates][5] = bootFiles[i]
             break
         end
@@ -278,18 +285,17 @@ end
 
 local function boot(image)
     if image[5] then
-        local handle, data, chunk, success, err, boot = invoke(image[2], "open", image[5], "r"), ""
+        local handle, data, chunk, success, err, boot = image[1].open(image[5], "r"), ""
 
         ::LOOP::
-        chunk = invoke(image[2], "read", handle, math.huge)
+        chunk = image[1].read(handle, math.huge)
 
         if chunk then
             data = data .. chunk
             goto LOOP
         end
 
-        invoke(image[2], "close", handle)
-
+        image[1].close(handle)
         boot = function()
             status(bootPreview(image, 1), F, .5, F, F)
             if Computer.getBootAddress() ~= image[2] then
@@ -411,7 +417,7 @@ local function bootloader()
             clear()
             env = setmetatable({
                 print = print,
-                proxy = function(componentType) return Component.list(componentType)() and Component.proxy(Component.list(componentType)()) end,
+                proxy = proxy,
                 os = {
                     sleep = function(timeout) sleep(timeout) end
                 },
@@ -428,7 +434,7 @@ local function bootloader()
                 goto LOOP
             end
         end},
-        Component.list"in"() and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
+        internet and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
     }, F, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
@@ -436,7 +442,6 @@ local function bootloader()
             return
         end
         clear()
-        centrizedSet(height, "Use ← ↑ → key to move cursor; Enter to do action; CTRL+D to shutdown")
 
         if #bootCandidates > 0 then
             centrizedSet(centerY + 5, bootPreview(bootCandidates[SELF.e[1].s]), F, 0xFFFFFF)
@@ -447,7 +452,7 @@ local function bootloader()
             end
 
             if not bootCandidates[SELF.e[1].s][6] then
-                if invoke(bootCandidates[SELF.e[1].s][2], "isReadOnly") then
+                if bootCandidates[SELF.e[1].s][1].isReadOnly() then
                     SELF.e[2].s = SELF.e[2].s > #SELF.e[2].e and #SELF.e[2].e or SELF.e[2].s
                 else
                     SELF.e[2].e[correction] = {
@@ -455,13 +460,13 @@ local function bootloader()
                             newLabel = input("New label: ", F, centerY + 7, 1)
 
                             if newLabel and #newLabel > 0 then
-                                invoke(1, bootCandidates[SELF.e[1].s][2], "setLabel", newLabel)
+                                bootCandidates[SELF.e[1].s][1].setLabel(newLabel)
                             end
                         end,
                     }
                     SELF.e[2].e[correction + 1] = {
                         "Format", function()
-                            invoke(1, bootCandidates[SELF.e[1].s][2], "remove", "/")
+                            bootCandidates[SELF.e[1].s][1].remove("/")
                         end
                     }
                 end
