@@ -71,7 +71,7 @@ local function configureSystem()
         gpu.bind((screen))
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
-        width, height = gpu.maxResolution
+        width, height = gpu.maxResolution()
         gpuAddress = gpu.address
         centerY = height / 2
         return 1
@@ -95,7 +95,7 @@ function Component.invoke(address, method, ...)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpu and method == "bind" and running then
+    elseif address == gpuAddress and method == "bind" and running then
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -151,7 +151,7 @@ end
 
 local function internetBoot(url, shutdown)
     if url and #url > 0 then
-        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Net"}), ""
+        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Netboot"}), ""
 
         if handle then
             status"Downloading..."
@@ -208,7 +208,7 @@ local function input(prefix, X, y, centrized, lastInput)
     elseif signalType:match"mp" or signalType == "F" then
         needUpdate = signalType:match"mp" and 1
         return
-    elseif signalType:match"up" then
+    elseif not signalType:match"up" then
         cursorState = not cursorState
     end
 
@@ -237,19 +237,19 @@ local function print(...)
 end
 
 local function bootPreview(image, booting)
-    return image[6] and ("Boot%s %s from Internet"):format(
+    return image[7] and ("Boot%s %s from Net"):format(
         booting and "ing" or "",
-        image[2]
+        image[3]
     )
-    or image[5] and ("Boot%s %s from %s (%s)"):format(
+    or image[6] and ("Boot%s %s from %s (%s)"):format(
         booting and "ing" or "",
-        image[5],
-        image[1],
-        cutText(image[2], booting and 36 or 6)
+        image[6],
+        image[2],
+        cutText(image[3], booting and 36 or 6)
     )
     or ("Boot from %s (%s) is not available"):format(
-        image[1],
-        cutText(image[2], booting and 36 or 6)
+        image[2],
+        cutText(image[3], booting and 36 or 6)
     )
 end
 
@@ -260,16 +260,16 @@ local function addCandidate(address)
         and {F, address, "Net", "", F, 1}
         or proxy and proxy.spaceTotal and address ~= Computer.tmpAddress()
         and {
-            proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
-                math.floor(proxy.spaceUsed / (proxy.spaceTotal() / 100)),
+            proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
+                math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
                 proxy.isReadOnly() and "Read only" or "Read & Write",
                 proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
         } or F
 
     for i = 1, #bootFiles do
-        if proxy.spaceTotal and proxy.exists(bootFiles[i]) then
-            bootCandidates[#bootCandidates][5] = bootFiles[i]
+        if proxy and proxy.spaceTotal and proxy.exists(bootFiles[i]) then
+            bootCandidates[#bootCandidates][6] = bootFiles[i]
             break
         end
     end
@@ -285,7 +285,7 @@ end
 
 local function boot(image)
     if image[5] then
-        local handle, data, chunk, success, err, boot = image[1].open(image[5], "r"), ""
+        local handle, data, chunk, success, err, boot = image[1].open(image[6], "r"), ""
 
         ::LOOP::
         chunk = image[1].read(handle, math.huge)
@@ -298,11 +298,11 @@ local function boot(image)
         image[1].close(handle)
         boot = function()
             status(bootPreview(image, 1), F, .5, F, F)
-            if Computer.getBootAddress() ~= image[2] then
-                Computer.setBootAddress(image[2])
+            if Computer.getBootAddress() ~= image[3] then
+                Computer.setBootAddress(image[3])
             end
             running = 1
-            success, err = execute(data, "=" .. image[5])
+            success, err = execute(data, "=" .. image[6])
             running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
             Computer.shutdown()
         end
@@ -397,11 +397,11 @@ local function bootloader()
     main = createWorkspace()
 
     if #bootCandidates > 0 then
-        createElements(main, {}, F, centerY - 2, 8, 3)
+        createElements(main, {}, F, centerY - 3, 8, 3)
         for i = 1, #bootCandidates do
             main.e[1].e[i] = {
                 function()
-                    return bootCandidates[i][3]
+                    return bootCandidates[i][4]
                 end,
 
                 function()
@@ -434,8 +434,8 @@ local function bootloader()
                 goto LOOP
             end
         end},
-        internet and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
-    }, F, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
+        internet and {"Netboot", function() internetBoot(input("URL: ", F, centerY + 5, 1)) end} or F
+    }, F, centerY + (#bootCandidates > 0 and 1 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
         if needUpdate then
@@ -444,35 +444,37 @@ local function bootloader()
         clear()
 
         if #bootCandidates > 0 then
-            centrizedSet(centerY + 5, bootPreview(bootCandidates[SELF.e[1].s]), F, 0xFFFFFF)
-            centrizedSet(centerY + 7, bootCandidates[SELF.e[1].s][4])
+            centrizedSet(centerY + 4, bootPreview(bootCandidates[SELF.e[1].s]), F, 0xFFFFFF)
+            centrizedSet(centerY + 6, bootCandidates[SELF.e[1].s][5])
 
             for j = correction, #SELF.e[2].e do
                 SELF.e[2].e[j] = F
             end
 
-            if not bootCandidates[SELF.e[1].s][6] then
+            if not bootCandidates[SELF.e[1].s][7] then
                 if bootCandidates[SELF.e[1].s][1].isReadOnly() then
                     SELF.e[2].s = SELF.e[2].s > #SELF.e[2].e and #SELF.e[2].e or SELF.e[2].s
                 else
                     SELF.e[2].e[correction] = {
                         "Rename", function()
-                            newLabel = input("New label: ", F, centerY + 7, 1)
+                            newLabel = input("New label: ", F, centerY + 6, 1)
 
                             if newLabel and #newLabel > 0 then
                                 bootCandidates[SELF.e[1].s][1].setLabel(newLabel)
+                                updateCandidates()
                             end
                         end,
                     }
                     SELF.e[2].e[correction + 1] = {
                         "Format", function()
                             bootCandidates[SELF.e[1].s][1].remove("/")
+                            updateCandidates()
                         end
                     }
                 end
             end
         else
-            centrizedSet(centerY + 4, "No drives available", F, 0xFFFFFF)
+            centrizedSet(centerY + 3, "No drives available", F, 0xFFFFFF)
         end
     end
 
