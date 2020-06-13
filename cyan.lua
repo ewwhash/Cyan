@@ -146,7 +146,7 @@ end
 
 local function internetBoot(url, shutdown)
     if url and #url > 0 then
-        local handle, data, chunk = invoke(Component.list"in"(), "request", url, F, F, {["user-agent"]="Cyan"}), ""
+        local handle, data, chunk = invoke(Component.list"in"(), "request", url, F, F, {["user-agent"]="Net"}), ""
 
         if handle then
             status"Downloading..."
@@ -203,7 +203,7 @@ local function input(prefix, X, y, centrized, lastInput)
     elseif signalType:match"mp" or signalType == "F" then
         needUpdate = signalType:match"mp" and 1
         return
-    elseif signalType ~= "key_up" then
+    elseif signalType:match"up" then
         cursorState = not cursorState
     end
 
@@ -351,7 +351,6 @@ local function bootloader()
 
     local function createWorkspace(onDraw)
         return {
-            w = 1,
             s = 1,
             e = {},
             o = onDraw,
