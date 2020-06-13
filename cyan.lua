@@ -1,10 +1,10 @@
 local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, gpu, eeprom, eepromData, needUpdate = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
-    local signal = {Computer.pullSignal(timeout or math.huge)}
+    local signal = {Computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
+    if #signal > 0 and users.n > 0 and ((signal[1]:match"do" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
         return table.unpack(signal)
     end
 
@@ -48,29 +48,20 @@ end
 local function sleep(timeout, breakCode, onBreak)
     local deadline, signalType, code, _ = Computer.uptime() + (timeout or math.huge)
 
-    repeat
-        signalType, _, _, code = pullSignal(deadline - Computer.uptime())
+    ::LOOP::
+    signalType, _, _, code = pullSignal(deadline - Computer.uptime())
 
-        if signalType == "F" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
-            action(onBreak)
-            return 1
-        end
-    until Computer.uptime() >= deadline
-end
-
-local function safeInvoke(rawAccess, ...)
-    local result = table.pack(pcall(rawAccess and invoke or Component.invoke, ...))
-
-    if result[1] then
-        return table.unpack(result, result.n)
-    else
-        return result[2]
+    if signalType == "F" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
+        action(onBreak)
+        return 1
+    elseif Computer.uptime() > deadline then
+        goto LOOP
     end
 end
 
 local function configureSystem()
     gpu, eeprom, screen = Component.list"gp"(), Component.list"pr"(), Component.list"sc"()
-    eepromData = safeInvoke(1, eeprom, "getData")
+    eepromData = eeprom and invoke(eeprom, "getData")
 
     if gpu and screen then
         invoke(gpu, "bind", (screen))
@@ -95,8 +86,7 @@ function Component.invoke(address, method, ...)
     if address == eeprom then
         if method == "setData" then
             eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...)) or (...)
-            safeInvoke(1, eeprom, method, eepromData)
-            return
+            return eeprom and invoke(eeprom, method, eepromData)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
@@ -108,8 +98,8 @@ function Component.invoke(address, method, ...)
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = function(...) safeInvoke(F, eeprom, "setData", ...) end
-Computer.getBootAddress = function(...) return safeInvoke(F, eeprom, "getData", ...) end
+Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setData", ...) end
+Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
     invoke(gpu, "setBackground", background or 0x002b36)
@@ -159,7 +149,7 @@ local function internetBoot(url, shutdown)
         local handle, data, chunk = invoke(Component.list"in"(), "request", url, F, F, {["user-agent"]="Cyan"}), ""
 
         if handle then
-            status("Downloading " .. url .. "...")
+            status"Downloading..."
             ::LOOP::
             chunk = handle.read()
 
@@ -182,65 +172,56 @@ end
 local function input(prefix, X, y, centrized, lastInput)
     local input, prefixLen, cursorPos, cursorState, x, cursorX, signalType, char, code, _ = "", Unicode.len(prefix), 1, 1
 
-    while 1 do
-        signalType, _, char, code = pullSignal(.5)
+    ::LOOP::
+    signalType, _, char, code = pullSignal(.5)
 
-        if signalType == "key_down" then
-            if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
-                input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
-                cursorPos = cursorPos + 1
-            elseif char == 8 and #input > 0 then
-                input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
-                cursorPos = cursorPos - 1
-            elseif char == 13 then
-                break
-            elseif code == 203 and cursorPos > 1 then
-                cursorPos = cursorPos - 1
-            elseif code == 205 and cursorPos <= Unicode.len(input) then
-                cursorPos = cursorPos + 1
-            elseif code == 200 and lastInput then
-                input = lastInput
-                cursorPos = Unicode.len(lastInput) + 1
-            elseif code == 208 and lastInput then
-                input = ""
-                cursorPos = 1
-            end
-
-            cursorState = 1
-        elseif signalType:match"cl" then
-            input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
-            cursorPos = cursorPos + Unicode.len(char)
-        elseif signalType == "F" then
-            input = F
-            break
-        elseif signalType:match"mp" then
-            needUpdate = 1
-            input = F 
-            break
-        elseif signalType ~= "key_up" then
-            cursorState = not cursorState
+    if signalType == "key_down" then
+        if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
+            input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
+            cursorPos = cursorPos + 1
+        elseif char == 8 and #input > 0 then
+            input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
+            cursorPos = cursorPos - 1
+        elseif char == 13 then
+            return input
+        elseif code == 203 and cursorPos > 1 then
+            cursorPos = cursorPos - 1
+        elseif code == 205 and cursorPos <= Unicode.len(input) then
+            cursorPos = cursorPos + 1
+        elseif code == 200 and lastInput then
+            input = lastInput
+            cursorPos = Unicode.len(lastInput) + 1
+        elseif code == 208 and lastInput then
+            input = ""
+            cursorPos = 1
         end
 
-        x = centrized and centrize(Unicode.len(input) + prefixLen) or X
-        cursorX = x + prefixLen + cursorPos - 1
-        fill(1, y, width, 1)
-        set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
-        if cursorX <= width then
-            set(cursorX, y, invoke(gpu, "get", cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
-        end
+        cursorState = 1
+    elseif signalType:match"cl" then
+        input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
+        cursorPos = cursorPos + Unicode.len(char)
+    elseif signalType:match"mp" or signalType == "F" then
+        needUpdate = signalType:match"mp" and 1
+        return
+    elseif signalType ~= "key_up" then
+        cursorState = not cursorState
     end
 
-    pcall(fill, 1, y, width, 1)
-    return input
+    x = centrized and centrize(Unicode.len(input) + prefixLen) or X
+    cursorX = x + prefixLen + cursorPos - 1
+    fill(1, y, width, 1)
+    set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
+    if cursorX <= width then
+        set(cursorX, y, invoke(gpu, "get", cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
+    end
+    goto LOOP
 end
 
 local function print(...)
     local text = table.pack(...)
-
     for i = 1, text.n do
         text[i] = tostring(text[i])
     end
-
     split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
@@ -268,21 +249,19 @@ local function bootPreview(image, booting)
 end
 
 local function addCandidate(address)
-    if address:match("http") and Component.list"in"() then
-        bootCandidates[#bootCandidates + 1] = {
-            F, address, "Net", "", F, 1
-        }
-    elseif Component.type(address) and Component.type(address):match"f" and address ~= Computer.tmpAddress() then
-        bootCandidates[#bootCandidates + 1] = {
-            invoke(address, "getLabel") or "N/A", address, cutText(invoke(address, "getLabel") or "N/A", 6), ("Disk usage %s%% / %s / %s")
-            :format(
+    bootCandidates[#bootCandidates + 1] = address:match("http") and Component.list"in"()
+        and {F, address, "Net", "", F, 1}
+        or Component.type(address) and Component.type(address):match"f" and address ~= Computer.tmpAddress()
+        and {
+            invoke(address, "getLabel") or "N/A", address, cutText(invoke(address, "getLabel") or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
                 math.floor(invoke(address, "spaceUsed") / (invoke(address, "spaceTotal") / 100)),
                 invoke(address, "isReadOnly") and "Read only" or "Read & Write",
                 invoke(address, "spaceTotal") < 2 ^ 20 and "FDD" or invoke(address, "spaceTotal") < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
         }
 
-        for i = 1, #bootFiles do
+    for i = 1, #bootFiles do
+        if Component.type(address) and Component.type(address):match"f" and invoke(address, "exists", bootFiles[i]) then
             bootCandidates[#bootCandidates][5] = bootFiles[i]
             break
         end
@@ -292,9 +271,8 @@ end
 local function updateCandidates()
     bootCandidates = {}
     addCandidate(Computer.getBootAddress())
-
-    for filesystem in pairs(Component.list"f") do
-        addCandidate(Computer.getBootAddress() ~= filesystem and filesystem or "")
+    for address in next, Component.list"f" do
+        addCandidate(address ~= computer.getBootAddress() and address or "")
     end
 end
 
@@ -386,29 +364,28 @@ local function bootloader()
                 end
             end,
             l = function(SELF)
-                while SELF.w do
-                    signalType, _, _, code = pullSignal(0)
+                ::LOOP::
+                signalType, _, _, code = pullSignal(0)
 
-                    if signalType:match"mp" or needUpdate then
-                        break
-                    elseif signalType == "key_down" then
-                        if code == 200 then -- Up
-                            SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
-                        elseif code == 208 then -- Down
-                            SELF.s = SELF.s < #SELF.e and SELF.s + 1 or 1
-                        elseif code == 203 then -- Left
-                            SELF.e[SELF.s].s = SELF.e[SELF.s].s > 1 and SELF.e[SELF.s].s - 1 or #SELF.e[SELF.s].e
-                        elseif code == 205 then -- Right
-                            SELF.e[SELF.s].s = SELF.e[SELF.s].s < #SELF.e[SELF.s].e and SELF.e[SELF.s].s + 1 or 1
-                        elseif code == 28 then -- Enter
-                            SELF.e[SELF.s].e[SELF.e[SELF.s].s][2]()
-                        end
-
-                        SELF:d()
-                    elseif signalType == "F" then
-                        return "F"
+                if signalType:match"mp" or needUpdate or signalType == "F" then
+                    return signalType
+                elseif signalType == "key_down" then
+                    if code == 200 then -- Up
+                        SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
+                    elseif code == 208 then -- Down
+                        SELF.s = SELF.s < #SELF.e and SELF.s + 1 or 1
+                    elseif code == 203 then -- Left
+                        SELF.e[SELF.s].s = SELF.e[SELF.s].s > 1 and SELF.e[SELF.s].s - 1 or #SELF.e[SELF.s].e
+                    elseif code == 205 then -- Right
+                        SELF.e[SELF.s].s = SELF.e[SELF.s].s < #SELF.e[SELF.s].e and SELF.e[SELF.s].s + 1 or 1
+                    elseif code == 28 then -- Enter
+                        SELF.e[SELF.s].e[SELF.e[SELF.s].s][2]()
                     end
+
+                    SELF:d()
                 end
+
+                goto LOOP
             end
         }
     end
