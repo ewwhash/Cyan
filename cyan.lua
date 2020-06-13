@@ -297,7 +297,6 @@ local function boot(image)
             end
             running = 1
             success, err = execute(data, "=" .. image[5])
-            running = F
             running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
             Computer.shutdown()
         end
