@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, eeprom, gpu, screen, internet, gpuAddress, eepromAddress, eepromData = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, gpu, eeprom, eepromData, needUpdate = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout or math.huge)}
@@ -10,7 +10,7 @@ local function pullSignal(timeout)
 
     key[signal[4] or ""] = signal[1] == "key_down" and 1
 
-    if key[29] and (key[56] and key[46] or key[32]) then
+    if key[29] and (key[56] and key[46] or key[32]) and signal[1] == "key_down" then
         return "F"
     end
 
@@ -58,23 +58,25 @@ local function sleep(timeout, breakCode, onBreak)
     until Computer.uptime() >= deadline
 end
 
-local function proxy(componentType)
-    return Component.list(componentType)() and Component.proxy(Component.list(componentType)())
+local function safeInvoke(rawAccess, ...)
+    local result = table.pack(pcall(rawAccess and invoke or Component.invoke, ...))
+
+    if result[1] then
+        return table.unpack(result, result.n)
+    else
+        return result[2]
+    end
 end
 
 local function configureSystem()
-    gpu, eeprom, internet, screen = proxy"gp", proxy"pr", proxy"in", Component.list"sc"()
-
-    if eeprom then
-        eepromAddress, eepromData = eeprom.address, eeprom.getData()
-    end
+    gpu, eeprom, screen = Component.list"gp"(), Component.list"pr"(), Component.list"sc"()
+    eepromData = safeInvoke(1, eeprom, "getData")
 
     if gpu and screen then
-        gpu.bind((screen))
-        gpu.setPaletteColor(9, 0x002b36)
-        gpu.setPaletteColor(11, 0x8cb9c5)
-        gpuAddress = gpu.address
-        width, height = gpu.maxResolution()
+        invoke(gpu, "bind", (screen))
+        invoke(gpu, "setPaletteColor", 9, 0x002b36)
+        invoke(gpu, "setPaletteColor", 11, 0x8cb9c5)
+        width, height = invoke(gpu, "maxResolution")
         centerY = height / 2
         return 1
     end
@@ -90,39 +92,39 @@ for i = 1, #users do
 end
 
 function Component.invoke(address, method, ...)
-    if address == eepromAddress then
+    if address == eeprom then
         if method == "setData" then
-            eepromData = ({...})[2] and (...) or (eepromData:match"[a-f-0-9]+" and eepromData:gsub("[a-f-0-9]+", (...)) or (...))
+            eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...)) or (...)
+            safeInvoke(1, eeprom, method, eepromData)
             return
         elseif method == "getData" then
-            return eepromData:match"[a-f-0-9]+" or eepromData
+            return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method == "bind" and running then
-        gpu.setPaletteColor(9, 0x969696)
-        gpu.setPaletteColor(11, 0xb4b4b4)
-        gpu.bind(...)
+    elseif address == gpu and method == "bind" and running then
+        invoke(gpu, "setPaletteColor", 9, 0x969696)
+        invoke(gpu, "setPaletteColor", 11, 0xb4b4b4)
     end
-        
+
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = eeprom.setData
-Computer.getBootAddress = eeprom.getData
+Computer.setBootAddress = function(...) safeInvoke(F, eeprom, "setData", ...) end
+Computer.getBootAddress = function(...) return safeInvoke(F, eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
-    gpu.set(x, y, string)
+    invoke(gpu, "setBackground", background or 0x002b36)
+    invoke(gpu, "setForeground", foreground or 0x8cb9c5)
+    invoke(gpu, "set", x, y, string)
 end
 
-local function fill(x, y, w, h, symbol, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
-    gpu.fill(x, y, w, h, symbol)
+local function fill(x, y, w, h, background, foreground)
+    invoke(gpu, "setBackground", background or 0x002b36)
+    invoke(gpu, "setForeground", foreground or 0x8cb9c5)
+    invoke(gpu, "fill", x, y, w, h, " ")
 end
 
 local function clear()
-    fill(1, 1, width, height, " ")
+    fill(1, 1, width, height)
 end
 
 local function centrize(len)
@@ -134,7 +136,7 @@ local function centrizedSet(y, text, background, foreground)
 end
 
 local function status(text, title, wait, breakCode, onBreak)
-    if configureSystem() then
+    if gpu and screen then
         split(text)
         clear()
         local y = math.ceil(centerY - #lines / 2)
@@ -153,8 +155,8 @@ local function status(text, title, wait, breakCode, onBreak)
 end
 
 local function internetBoot(url, shutdown)
-    if #url > 0 then
-        local handle, data, chunk = internet.request(url), ""
+    if url and #url > 0 then
+        local handle, data, chunk = invoke(Component.list"in"(), "request", url, F, F, {["user-agent"]="Cyan"}), ""
 
         if handle then
             status("Downloading " .. url .. "...")
@@ -183,10 +185,7 @@ local function input(prefix, X, y, centrized, lastInput)
     while 1 do
         signalType, _, char, code = pullSignal(.5)
 
-        if signalType == "F" then
-            input = F
-            break
-        elseif signalType == "key_down" then
+        if signalType == "key_down" then
             if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
                 input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
                 cursorPos = cursorPos + 1
@@ -211,20 +210,27 @@ local function input(prefix, X, y, centrized, lastInput)
         elseif signalType:match"cl" then
             input = Unicode.sub(input, 1, cursorPos - 1) .. char .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + Unicode.len(char)
+        elseif signalType == "F" then
+            input = F
+            break
+        elseif signalType:match"mp" then
+            needUpdate = 1
+            input = F 
+            break
         elseif signalType ~= "key_up" then
             cursorState = not cursorState
         end
 
         x = centrized and centrize(Unicode.len(input) + prefixLen) or X
         cursorX = x + prefixLen + cursorPos - 1
-        fill(1, y, width, 1, " ")
+        fill(1, y, width, 1)
         set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
         if cursorX <= width then
-            set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
+            set(cursorX, y, invoke(gpu, "get", cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
         end
     end
 
-    fill(1, y, width, 1, " ")
+    pcall(fill, 1, y, width, 1)
     return input
 end
 
@@ -238,42 +244,46 @@ local function print(...)
     split(table.concat(text, "    "), 1)
 
     for i = 1, #lines do
-        gpu.copy(1, 1, width, height - 1, 0, -1)
-        fill(1, height - 1, width, 1, " ")
+        invoke(gpu, "copy", 1, 1, width, height - 1, 0, -1)
+        fill(1, height - 1, width, 1)
         set(1, height - 1, lines[i])
     end
 end
 
 local function bootPreview(image, booting)
-    return image[6] and ("Boot%s %s from %s (%s)"):format(
+    return image[6] and ("Boot%s %s from Internet"):format(
         booting and "ing" or "",
-        image[6],
-        image[2],
-        cutText(image[3], booting and 36 or 6)
+        image[2]
+    )
+    or image[5] and ("Boot%s %s from %s (%s)"):format(
+        booting and "ing" or "",
+        image[5],
+        image[1],
+        cutText(image[2], booting and 36 or 6)
     )
     or ("Boot from %s (%s) is not available"):format(
-        image[2],
-        cutText(image[3], booting and 36 or 6)
+        image[1],
+        cutText(image[2], booting and 36 or 6)
     )
 end
 
 local function addCandidate(address)
-    if address:match("http") and internet then
+    if address:match("http") and Component.list"in"() then
         bootCandidates[#bootCandidates + 1] = {
-            F, "Net", address, "Net", "", F, 1
+            F, address, "Net", "", F, 1
         }
-    elseif Component.proxy(address) and Component.proxy(address).spaceTotal and address ~= Computer.tmpAddress() then
+    elseif Component.type(address) and Component.type(address):match"f" and address ~= Computer.tmpAddress() then
         bootCandidates[#bootCandidates + 1] = {
-            Component.proxy(address), Component.proxy(address).getLabel() or "N/A", address, cutText(Component.proxy(address).getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s")
+            invoke(address, "getLabel") or "N/A", address, cutText(invoke(address, "getLabel") or "N/A", 6), ("Disk usage %s%% / %s / %s")
             :format(
-                math.floor(Component.proxy(address).spaceUsed() / (Component.proxy(address).spaceTotal() / 100)),
-                Component.proxy(address).isReadOnly() and "Read only" or "Read & Write",
-                Component.proxy(address).spaceTotal() < 2 ^ 20 and "FDD" or Component.proxy(address).spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
+                math.floor(invoke(address, "spaceUsed") / (invoke(address, "spaceTotal") / 100)),
+                invoke(address, "isReadOnly") and "Read only" or "Read & Write",
+                invoke(address, "spaceTotal") < 2 ^ 20 and "FDD" or invoke(address, "spaceTotal") < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
         }
 
         for i = 1, #bootFiles do
-            bootCandidates[#bootCandidates][6] = bootFiles[i]
+            bootCandidates[#bootCandidates][5] = bootFiles[i]
             break
         end
     end
@@ -281,48 +291,52 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(eeprom.getData() or computer.getBootAddress())
+    addCandidate(Computer.getBootAddress())
 
     for filesystem in pairs(Component.list"f") do
-        addCandidate(eeprom.getData() ~= filesystem and filesystem or "")
+        addCandidate(Computer.getBootAddress() ~= filesystem and filesystem or "")
     end
 end
 
 local function boot(image)
-    if image[6] then
-        local handle, data, chunk, success, err, boot = image[1].open(image[6], "r"), ""
+    if image[5] then
+        local handle, data, chunk, success, err, boot = invoke(image[2], "open", image[5], "r"), ""
 
         ::LOOP::
-        chunk = image[1].read(handle, math.huge)
+        chunk = invoke(image[2], "read", handle, math.huge)
 
         if chunk then
             data = data .. chunk
             goto LOOP
         end
 
-        image[1].close(handle)
+        invoke(image[2], "close", handle)
 
         boot = function()
             status(bootPreview(image, 1), F, .5, F, F)
-            if eeprom.getData() ~= image[3] then
-                eeprom.setData(image[3])
+            if Computer.getBootAddress() ~= image[2] then
+                Computer.setBootAddress(image[2])
             end
             running = 1
-            success, err = execute(data, "=" .. image[6])
+            success, err = execute(data, "=" .. image[5])
             running = F
             running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
             Computer.shutdown()
         end
 
         data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
+    elseif image[6] then
+        internetBoot(image[2], 1)
     end
 end
 
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local env, main, signalType, code, correction, newLabel, data, _
+    needUpdate = F
+    configureSystem()
     updateCandidates()
+    local env, main, signalType, code, correction, newLabel, data, _
 
     local function createElements(workspace, elements, onDraw, y, spaces, borderHeight)
         table.insert(workspace.e, {
@@ -343,7 +357,7 @@ local function bootloader()
 
                 for i = 1, #SELF.e do
                     if SELF.s == i and drawSelected then
-                        fill(x - spaces / 2, SELF.y - math.floor(borderHeight / 2), Unicode.len(SELF.e[i][3]) + spaces, borderHeight, " ", 0x8cb9c5)
+                        fill(x - spaces / 2, SELF.y - math.floor(borderHeight / 2), Unicode.len(SELF.e[i][3]) + spaces, borderHeight, 0x8cb9c5)
                         set(x, SELF.y, SELF.e[i][3], 0x8cb9c5, 0x002b36)
                     else
                         set(x, SELF.y, SELF.e[i][3], 0x002b36, 0x8cb9c5)
@@ -364,8 +378,7 @@ local function bootloader()
             e = {},
             o = onDraw,
             d = function(SELF)
-                if gpu and screen then
-                    clear()
+                if gpu and screen and not needUpdate then
                     action(SELF.o, SELF)
                     for i = 1, #SELF.e do
                         SELF.e[i]:d(SELF.s == i)
@@ -374,10 +387,11 @@ local function bootloader()
             end,
             l = function(SELF)
                 while SELF.w do
-                    SELF:d()
-                    signalType, _, _, code = pullSignal()
+                    signalType, _, _, code = pullSignal(0)
 
-                    if signalType == "key_down" then
+                    if signalType:match"mp" or needUpdate then
+                        break
+                    elseif signalType == "key_down" then
                         if code == 200 then -- Up
                             SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
                         elseif code == 208 then -- Down
@@ -389,10 +403,10 @@ local function bootloader()
                         elseif code == 28 then -- Enter
                             SELF.e[SELF.s].e[SELF.e[SELF.s].s][2]()
                         end
-                    elseif signalType:match"mp" then
-                        break
+
+                        SELF:d()
                     elseif signalType == "F" then
-                        SELF.w = F
+                        return "F"
                     end
                 end
             end
@@ -400,12 +414,13 @@ local function bootloader()
     end
 
     main = createWorkspace()
+
     if #bootCandidates > 0 then
         createElements(main, {}, F, centerY - 2, 8, 3)
         for i = 1, #bootCandidates do
             main.e[1].e[i] = {
                 function()
-                    return bootCandidates[i][4]
+                    return bootCandidates[i][3]
                 end,
 
                 function()
@@ -414,74 +429,75 @@ local function bootloader()
             }
         end
     end
+
     correction = createElements(main, {
         {"Power off", Computer.shutdown},
         {"Lua", function()
             clear()
             env = setmetatable({
                 print = print,
-                proxy = proxy,
+                proxy = function(componentType) return Component.list(componentType)() and Component.proxy(Component.list(componentType)()) end,
                 os = {
                     sleep = function(timeout) sleep(timeout) end
                 },
-                read = function(lastInput) print(" ") data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data) return data end
+                read = function(lastInput) print(" ") data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data or "") return data end
             }, {__index = _G})
 
             ::LOOP::
-                data = input("> ", 1, height, F, data)
+            data = input("> ", 1, height, F, data)
 
-                if data then
-                    print("> " .. data)
-                    set(1, height, ">")
-                    print(select(2, execute(data, "=stdin", env)))
-                    goto LOOP
-                end
-            main:d()
+            if data then
+                print("> " .. data)
+                set(1, height, ">")
+                print(select(2, execute(data, "=stdin", env)))
+                goto LOOP
+            end
         end},
-        internet and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
+        Component.list"in"() and {"Internet boot", function() internetBoot(input("URL: ", F, centerY + 7, 1)) end} or F
     }, F, centerY + (#bootCandidates > 0 and 2 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
+        if needUpdate then
+            return
+        end
+        clear()
         centrizedSet(height, "Use ← ↑ → key to move cursor; Enter to do action; CTRL+D to shutdown")
 
         if #bootCandidates > 0 then
             centrizedSet(centerY + 5, bootPreview(bootCandidates[SELF.e[1].s]), F, 0xFFFFFF)
-            centrizedSet(centerY + 7, bootCandidates[SELF.e[1].s][5])
+            centrizedSet(centerY + 7, bootCandidates[SELF.e[1].s][4])
 
             for j = correction, #SELF.e[2].e do
                 SELF.e[2].e[j] = F
             end
 
-            if bootCandidates[SELF.e[1].s][1].isReadOnly() then
-                SELF.e[2].s = SELF.e[2].s > #SELF.e[2].e and #SELF.e[2].e or SELF.e[2].s
-            else
-                SELF.e[2].e[correction] = {
-                    "Rename", function()
-                        newLabel = input("New label: ", F, centerY + 7, 1)
+            if not bootCandidates[SELF.e[1].s][6] then
+                if invoke(bootCandidates[SELF.e[1].s][2], "isReadOnly") then
+                    SELF.e[2].s = SELF.e[2].s > #SELF.e[2].e and #SELF.e[2].e or SELF.e[2].s
+                else
+                    SELF.e[2].e[correction] = {
+                        "Rename", function()
+                            newLabel = input("New label: ", F, centerY + 7, 1)
 
-                        if #newLabel > 0 then
-                            pcall(bootCandidates[SELF.e[1].s][1].setLabel, newLabel)
-                            updateCandidates()
-                            main:d()
+                            if newLabel and #newLabel > 0 then
+                                invoke(1, bootCandidates[SELF.e[1].s][2], "setLabel", newLabel)
+                            end
+                        end,
+                    }
+                    SELF.e[2].e[correction + 1] = {
+                        "Format", function()
+                            invoke(1, bootCandidates[SELF.e[1].s][2], "remove", "/")
                         end
-                    end,
-                }
-                SELF.e[2].e[correction + 1] = {
-                    "Format", function()
-                        bootCandidates[SELF.e[1].s][1].remove("/")
-                        main:d()
-                    end
-                }
+                    }
+                end
             end
         else
             centrizedSet(centerY + 4, "No drives available", F, 0xFFFFFF)
         end
     end
 
-    main:l()
-
-    if main.w then
-        configureSystem()
+    main:d()
+    if main:l() ~= "F" then
         goto UPDATE
     end
 end
@@ -491,4 +507,4 @@ status("Hold CTRL to stay in bootloader", F, .9, 29, function() bootloader() Com
 for i = 1, #bootCandidates do
     boot(bootCandidates[i])
 end
-gpuAddress = configureSystem() and bootloader() or error"No drives available"
+gpu = configureSystem() and bootloader() or error"No drives available"
