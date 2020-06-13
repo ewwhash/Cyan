@@ -4,13 +4,13 @@ local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match"do" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
+    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
         return table.unpack(signal)
     end
 
-    key[signal[4] or ""] = signal[1] == "key_down" and 1
+    key[signal[4] or ""] = signal[1]:match"do" and 1
 
-    if key[29] and (key[56] and key[46] or key[32]) and signal[1] == "key_down" then
+    if key[29] and (key[56] and key[46] or key[32]) and signal[1]:match"do" then
         return "F"
     end
 
@@ -51,7 +51,7 @@ local function sleep(timeout, breakCode, onBreak)
     ::LOOP::
     signalType, _, _, code = pullSignal(deadline - Computer.uptime())
 
-    if signalType == "F" or signalType == "key_down" and (code == breakCode or breakCode == 0) then
+    if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
         action(onBreak)
         return 1
     elseif Computer.uptime() > deadline then
@@ -142,7 +142,7 @@ local function status(text, title, wait, breakCode, onBreak)
 
         return sleep(wait or 0, breakCode, onBreak)
     end
-end
+end 
 
 local function internetBoot(url, shutdown)
     if url and #url > 0 then
@@ -175,7 +175,7 @@ local function input(prefix, X, y, centrized, lastInput)
     ::LOOP::
     signalType, _, char, code = pullSignal(.5)
 
-    if signalType == "key_down" then
+    if signalType:match"do" then
         if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
             input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + 1
@@ -368,7 +368,7 @@ local function bootloader()
 
                 if signalType:match"mp" or needUpdate or signalType == "F" then
                     return signalType
-                elseif signalType == "key_down" then
+                elseif signalType:match"do" then
                     if code == 200 then -- Up
                         SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
                     elseif code == 208 then -- Down
