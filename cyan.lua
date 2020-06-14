@@ -4,7 +4,7 @@ local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match"key" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
+    if #signal > 0 and users.n > 0 and ((signal[1]:match"ey" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
         return table.unpack(signal)
     end
 
@@ -44,7 +44,7 @@ local function split(text, tabulate)
 end
 
 local function action(func, ...)
-    if func and type(func):match("fu") then
+    if func and type(func):match("f") then
         return func(...)
     end
 end
@@ -89,13 +89,13 @@ end
 
 function Component.invoke(address, method, ...)
     if address == eeprom then
-        if method == "setData" then
+        if method:match"set" then
             eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...)) or (...)
             return eeprom and invoke(eeprom, method, eepromData)
-        elseif method == "getData" then
+        elseif method:match"getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method == "bind" and running then
+    elseif address == gpuAddress and method:match"bi" and running then
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -103,7 +103,7 @@ function Component.invoke(address, method, ...)
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setData", ...) end
+Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "set", ...) end
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
@@ -151,7 +151,7 @@ end
 
 local function internetBoot(url, shutdown)
     if url and #url > 0 then
-        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Netboot"}), ""
+        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Net"}), ""
 
         if handle then
             status"Downloading..."
