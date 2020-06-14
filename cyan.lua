@@ -237,8 +237,9 @@ local function print(...)
 end
 
 local function bootPreview(image, booting)
-    return image[7] and ("Boot%s %s from Net"):format(
+    return image[7] and ("Boot%s %s from %s"):format(
         booting and "ing" or "",
+        image[2],
         image[3]
     )
     or image[6] and ("Boot%s %s from %s (%s)"):format(
@@ -256,7 +257,7 @@ end
 local function addCandidate(address)
     local proxy = component.proxy(address)
 
-    bootCandidates[#bootCandidates + 1] = address:match("http") and internet
+    bootCandidates[#bootCandidates + 1] = address:match("/") and internet
         and {F, address, "Net", "", F, 1}
         or proxy and proxy.spaceTotal and address ~= Computer.tmpAddress()
         and {
