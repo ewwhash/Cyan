@@ -58,7 +58,7 @@ local function sleep(timeout, breakCode, onBreak)
     if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
         action(onBreak)
         return 1
-    elseif Computer.uptime() < deadline then
+    elseif Computer.uptime() <= deadline then
         goto LOOP
     end
 end
@@ -89,13 +89,13 @@ end
 
 function Component.invoke(address, method, ...)
     if address == eeprom then
-        if method:match"set" then
+        if method == "setData" then
             eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...)) or (...)
             return eeprom and invoke(eeprom, method, eepromData)
-        elseif method:match"getData" then
+        elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method:match"bin" and running then
+    elseif address == gpuAddress and method == "bind" and running then
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -103,7 +103,7 @@ function Component.invoke(address, method, ...)
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "set", ...) end
+Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setData", ...) end
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
@@ -286,7 +286,7 @@ local function updateCandidates()
 end
 
 local function boot(image)
-    if image[5] then
+    if image[6] then
         local handle, data, chunk, success, err, boot = image[1].open(image[6], "r"), ""
 
         ::LOOP::
@@ -309,7 +309,7 @@ local function boot(image)
         end
 
         data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
-    elseif image[6] then
+    elseif image[7] then
         internetBoot(image[2], 1)
     end
 end
