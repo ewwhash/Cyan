@@ -96,8 +96,6 @@ function Component.invoke(address, method, ...)
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
     elseif address == gpuAddress and method:match"bin" and running then
-        gpu.setBackground(0x000000)
-        gpu.fill(1, 1, width, height, " ")
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -165,7 +163,7 @@ local function internetBoot(url, shutdown)
                 goto LOOP
             end
 
-            status(select(2, execute(data, "=net")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
+            status(select(2, execute(data, "=Net")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
         else
             status("Invalid URL", [[¯\_(ツ)_/¯]], math.huge, 0, shutdown and Computer.shutdown)
         end
