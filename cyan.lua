@@ -58,7 +58,7 @@ local function sleep(timeout, breakCode, onBreak)
     if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
         action(onBreak)
         return 1
-    elseif Computer.uptime() > deadline then
+    elseif Computer.uptime() < deadline then
         goto LOOP
     end
 end
