@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/OS.lua", "/boot.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/boot.lua", "/OS.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
@@ -79,7 +79,7 @@ local function configureSystem()
 end
 
 configureSystem()
-users = select(2, pcall(load("return " .. (eepromData:match"#(.+)#" or "{}"))))
+users = select(2, execute(eepromData:match"#(.+)#" or "{}"))
 requestUserPressOnBoot = eepromData:match"*"
 users.n = #users
 for i = 1, #users do
