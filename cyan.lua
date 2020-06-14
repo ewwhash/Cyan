@@ -78,30 +78,6 @@ local function configureSystem()
     end
 end
 
-local function set(x, y, string, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
-    gpu.set(x, y, string)
-end
-
-local function fill(x, y, w, h, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
-    gpu.fill(x, y, w, h, " ")
-end
-
-local function clear(background)
-    fill(1, 1, width, height, background)
-end
-
-local function centrize(len)
-    return math.ceil(width / 2 - len / 2)
-end
-
-local function centrizedSet(y, text, background, foreground)
-    set(centrize(Unicode.len(text)), y, text, background, foreground)
-end
-
 configureSystem()
 users = select(2, execute(eepromData:match"#(.+)#" or "{}"))
 requestUserPressOnBoot = eepromData:match"*"
@@ -119,8 +95,9 @@ function Component.invoke(address, method, ...)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method == "bind" and running then
-        clear(0x000000)
+    elseif address == gpuAddress and method:match"bin" and running then
+        gpu.setBackground(0x000000)
+        gpu.fill(1, 1, width, height, " ")
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -130,6 +107,30 @@ end
 
 Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setData", ...) end
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
+
+local function set(x, y, string, background, foreground)
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
+    gpu.set(x, y, string)
+end
+
+local function fill(x, y, w, h, background, foreground)
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
+    gpu.fill(x, y, w, h, " ")
+end
+
+local function clear()
+    fill(1, 1, width, height)
+end
+
+local function centrize(len)
+    return math.ceil(width / 2 - len / 2)
+end
+
+local function centrizedSet(y, text, background, foreground)
+    set(centrize(Unicode.len(text)), y, text, background, foreground)
+end
 
 local function status(text, title, wait, breakCode, onBreak)
     if gpu and screen then
@@ -164,7 +165,7 @@ local function internetBoot(url, shutdown)
                 goto LOOP
             end
 
-            status(select(2, execute(data, "=stdin")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
+            status(select(2, execute(data, "=net")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
         else
             status("Invalid URL", [[¯\_(ツ)_/¯]], math.huge, 0, shutdown and Computer.shutdown)
         end
