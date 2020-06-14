@@ -305,7 +305,6 @@ local function boot(image)
             running = 1
             success, err = execute(data, "=" .. image[6])
             running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
-            Computer.shutdown()
         end
 
         data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
@@ -483,10 +482,11 @@ local function bootloader()
     if main:l() ~= "F" then
         goto UPDATE
     end
+    Computer.shutdown()
 end
 
 updateCandidates()
-status("Hold CTRL to stay in bootloader", F, .9, 29, function() bootloader() Computer.shutdown() end)
+status("Hold CTRL to stay in bootloader", F, .9, 29, bootloader)
 for i = 1, #bootCandidates do
     boot(bootCandidates[i])
 end
