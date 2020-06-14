@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, running, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/boot.lua", "/OS.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, paletteNotOverwrited, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/boot.lua", "/OS.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
@@ -65,7 +65,7 @@ end
 
 local function configureSystem()
     gpu, internet, eeprom, screen = proxy"gp", proxy"in", Component.list"pr"(), Component.list"sc"()
-    eepromData = eeprom and invoke(eeprom, "getData")
+    eepromData = eeprom and invoke(eeprom, "getData") or eepromData
 
     if gpu and screen then
         gpu.bind((screen))
@@ -95,7 +95,8 @@ function Component.invoke(address, method, ...)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method:match"bin" and running then
+    elseif method == "set" and paletteNotOverwrited then
+        paletteNotOverwrited = F
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -103,7 +104,7 @@ function Component.invoke(address, method, ...)
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = function(...) return eeprom and invoke(eeprom, "setData", ...) end
+Computer.setBootAddress = function(...) return eeprom and Component.invoke(eeprom, "setData", ...) end
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
@@ -237,13 +238,8 @@ local function print(...)
     end
 end
 
-local function bootPreview(image, booting)
-    return image[7] and ("Boot%s %s from %s"):format(
-        booting and "ing" or "",
-        image[2],
-        image[3]
-    )
-    or image[6] and ("Boot%s %s from %s (%s)"):format(
+local function bootPreview(image, booting, y, foreground)
+    centrizedSet(y, (image[7] or image[6]) and ("Boot%s %s from %s (%s)"):format(
         booting and "ing" or "",
         image[6],
         image[2],
@@ -252,14 +248,14 @@ local function bootPreview(image, booting)
     or ("Boot from %s (%s) is not available"):format(
         image[2],
         cutText(image[3], booting and 36 or 6)
-    )
+    ), F, foreground)
 end
 
 local function addCandidate(address)
     local proxy = component.proxy(address)
 
     bootCandidates[#bootCandidates + 1] = address:match("/") and internet
-        and {F, address, "Net", "", F, 1}
+        and {F, "Net", address, "Net", "", address:match"(%/?[^%/]+%/?)$" or "N/A", 1}
         or proxy and proxy.spaceTotal and address ~= Computer.tmpAddress()
         and {
             proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
@@ -286,8 +282,10 @@ local function updateCandidates()
 end
 
 local function boot(image)
-    if image[6] then
-        local handle, data, chunk, success, err, boot = image[1].open(image[6], "r"), ""
+    if image[7] then
+        internetBoot(image[2], 1)
+    elseif image[6] then
+        local handle, data, chunk, success, err = image[1].open(image[6], "r"), ""
 
         ::LOOP::
         chunk = image[1].read(handle, math.huge)
@@ -298,19 +296,18 @@ local function boot(image)
         end
 
         image[1].close(handle)
-        boot = function()
-            status(bootPreview(image, 1), F, .5, F, F)
+        local function run()
+            clear()
+            bootPreview(image, 1, centerY)
             if Computer.getBootAddress() ~= image[3] then
                 Computer.setBootAddress(image[3])
             end
-            running = 1
+            paletteNotOverwrited = 1
             success, err = execute(data, "=" .. image[6])
-            running = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
+            paletteNotOverwrited = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
         end
 
-        data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, boot) or boot()
-    elseif image[7] then
-        internetBoot(image[2], 1)
+        data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, run) or run()
     end
 end
 
@@ -435,7 +432,7 @@ local function bootloader()
                 goto LOOP
             end
         end},
-        internet and {"Netboot", function() internetBoot(input("URL: ", F, centerY + 5, 1)) end} or F
+        internet and {"Netboot", function() internetBoot(input("URL: ", F, centerY + 6, 1)) end} or F
     }, F, centerY + (#bootCandidates > 0 and 1 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
@@ -445,7 +442,7 @@ local function bootloader()
         clear()
 
         if #bootCandidates > 0 then
-            centrizedSet(centerY + 4, bootPreview(bootCandidates[SELF.e[1].s]), F, 0xFFFFFF)
+            bootPreview(bootCandidates[SELF.e[1].s], F, centerY + 4, 0xFFFFFF)
             centrizedSet(centerY + 6, bootCandidates[SELF.e[1].s][5])
 
             for j = correction, #SELF.e[2].e do
