@@ -95,7 +95,7 @@ function Component.invoke(address, method, ...)
         elseif method:match"getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif address == gpuAddress and method:match"bi" and running then
+    elseif address == gpuAddress and method:match"bin" and running then
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -188,6 +188,7 @@ local function input(prefix, X, y, centrized, lastInput)
             input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos - 1
         elseif char == 13 then
+            fill(1, y, width, 1)
             return input
         elseif code == 203 and cursorPos > 1 then
             cursorPos = cursorPos - 1
