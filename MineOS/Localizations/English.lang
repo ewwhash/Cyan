@@ -1,7 +1,7 @@
 {
     readOnly = "Read only:",
     whitelist = "Whitelist access:",
-    requireUserPressOnBoot = "Require user press on boot:",
+    requireUserPressOnBoot = "Wait for user input on boot:",
     username = "Enter player name",
     invalidUsername = "Invalid username",
     freeSpaceLimit = "You have exceeded the user limit",
