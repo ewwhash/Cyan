@@ -22,7 +22,7 @@ end
 
 if QA("Create whitelist for bootloader access?") then
     repeat
-        io.write('Whitelist example: {"Jako", "Berserk29", "Elds01", "svchost2"}\nWhitelist: ')
+        io.write('Whitelist example: {"hohserg", "Fingercomp", "Saghetti"}\nWhitelist: ')
         users = read()
         local err = select(2, require("serialization").unserialize(users))
 
