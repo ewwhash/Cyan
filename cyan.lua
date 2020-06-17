@@ -95,7 +95,7 @@ function Component.invoke(address, method, ...)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
         end
-    elseif method == "set" and paletteNotOverwrited then
+    elseif method == "set" and paletteNotOverwrited and address == gpuAddress then
         paletteNotOverwrited = F
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
