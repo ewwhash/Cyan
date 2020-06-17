@@ -150,27 +150,6 @@ local function status(text, title, wait, breakCode, onBreak)
     end
 end
 
-local function internetBoot(url, shutdown)
-    if url and #url > 0 then
-        local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Net"}), ""
-
-        if handle then
-            status"Downloading..."
-            ::LOOP::
-            chunk = handle.read()
-
-            if chunk then
-                data = data .. chunk
-                goto LOOP
-            end
-
-            status(select(2, execute(data, "=Net")) or "is empty", [[¯\_(ツ)_/¯]], math.huge, 0)
-        else
-            status("Invalid URL", [[¯\_(ツ)_/¯]], math.huge, 0, shutdown and Computer.shutdown)
-        end
-    end
-end
-
 local function cutText(text, maxLength)
     return Unicode.len(text) > maxLength and Unicode.sub(text, 1, maxLength) .. "…" or text
 end
@@ -239,36 +218,34 @@ local function print(...)
 end
 
 local function bootPreview(image, booting, y, foreground)
-    centrizedSet(y, (image[7] or image[6]) and ("Boot%s %s from %s (%s)"):format(
+    centrizedSet(y, image[6] and ("Boot%s %s from %s (%s)"):format(
         booting and "ing" or "",
         image[6],
         image[2],
         cutText(image[3], booting and 36 or 6)
-    )
-    or ("Boot from %s (%s) is not available"):format(
+    ) or ("Boot from %s (%s) is not available"):format(
         image[2],
         cutText(image[3], booting and 36 or 6)
     ), F, foreground)
 end
 
 local function addCandidate(address)
-    local proxy = component.proxy(address)
+    local proxy = Component.proxy(address)
 
-    bootCandidates[#bootCandidates + 1] = address:match("/") and internet
-        and {F, "Net", address, "Net", "", address:match"(%/?[^%/]+%/?)$" or "N/A", 1}
-        or proxy and proxy.spaceTotal and address ~= Computer.tmpAddress()
-        and {
+    if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
+        bootCandidates[#bootCandidates + 1] = {
             proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
                 math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
                 proxy.isReadOnly() and "Read only" or "Read & Write",
                 proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
             )
-        } or F
+        }
 
-    for i = 1, #bootFiles do
-        if proxy and proxy.spaceTotal and proxy.exists(bootFiles[i]) then
-            bootCandidates[#bootCandidates][6] = bootFiles[i]
-            break
+        for i = 1, #bootFiles do
+            if proxy.exists(bootFiles[i]) then
+                bootCandidates[#bootCandidates][6] = bootFiles[i]
+                break
+            end
         end
     end
 end
@@ -282,9 +259,7 @@ local function updateCandidates()
 end
 
 local function boot(image)
-    if image[7] then
-        internetBoot(image[2], 1)
-    elseif image[6] then
+    if image[6] then
         local handle, data, chunk, success, err = image[1].open(image[6], "r"), ""
 
         ::LOOP::
@@ -317,7 +292,7 @@ local function bootloader()
     needUpdate = F
     configureSystem()
     updateCandidates()
-    local env, main, signalType, code, correction, newLabel, data, _
+    local env, main, signalType, code, correction, newLabel, data, url, _
 
     local function createElements(workspace, elements, onDraw, y, spaces, borderHeight)
         table.insert(workspace.e, {
@@ -432,13 +407,31 @@ local function bootloader()
                 goto LOOP
             end
         end},
-        internet and {"Netboot", function() internetBoot(input("URL: ", F, centerY + 6, 1)) end} or F
+        internet and {"Internet boot", function()
+            url = input("URL: ", F, centerY + 6, 1)
+
+            if url and #url > 0 then
+                local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Cyan"}), ""
+
+                if handle then
+                    status"Downloading..."
+                    ::LOOP::
+                    chunk = handle.read()
+
+                    if chunk then
+                        data = data .. chunk
+                        goto LOOP
+                    end
+
+                    status(select(2, execute(data, "=Internet boot")) or "is empty", "Internet boot", math.huge, 0)
+                else
+                    status("Invalid URL", "Internet boot", math.huge, 0)
+                end
+            end
+        end} or F
     }, F, centerY + (#bootCandidates > 0 and 1 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
-        if needUpdate then
-            return
-        end
         clear()
 
         if #bootCandidates > 0 then
