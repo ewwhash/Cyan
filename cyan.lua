@@ -104,7 +104,7 @@ function Component.invoke(address, method, ...)
     return invoke(address, method, ...)
 end
 
-Computer.setBootAddress = function(...) return eeprom and Component.invoke(eeprom, "setData", ...) end
+Computer.setBootAddress = function(...) return Component.invoke(eeprom, "setData", ...) end
 Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
 
 local function set(x, y, string, background, foreground)
