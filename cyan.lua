@@ -90,7 +90,7 @@ end
 function Component.invoke(address, method, ...)
     if address == eeprom then
         if method == "setData" then
-            eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...)) or (...)
+            eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...) .. "#{") or (...)
             return eeprom and invoke(eeprom, method, eepromData)
         elseif method == "getData" then
             return not (...) and eepromData:match"(.+)#{" or eepromData
