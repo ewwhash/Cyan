@@ -64,7 +64,7 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local function configureSystem()
-    gpu, internet, eeprom, screen = proxy"gp", proxy"in", Component.list"pr"(), Component.list"sc"()
+    gpu, internet, eeprom, screen = proxy"gp", proxy"internet", Component.list"pro"(), Component.list"sc"()
     eepromData = eeprom and invoke(eeprom, "getData") or eepromData
 
     if gpu and screen then
