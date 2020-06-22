@@ -132,7 +132,7 @@ local function centrizedSet(y, text, background, foreground)
 end
 
 local function status(text, title, wait, breakCode, onBreak)
-    if gpu and screen then
+    if configureSystem() then
         split(text)
         clear()
         local y = math.ceil(centerY - #lines / 2)
@@ -423,6 +423,7 @@ local function bootloader()
                         goto LOOP
                     end
 
+                    paletteNotOverwrited = 1
                     status(select(2, execute(data, "=Internet boot")) or "is empty", "Internet boot", math.huge, 0)
                 else
                     status("Invalid URL", "Internet boot", math.huge, 0)
