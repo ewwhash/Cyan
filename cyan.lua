@@ -460,6 +460,7 @@ local function bootloader()
                     SELF.e[2].e[correction + 1] = {
                         "Format", function()
                             bootCandidates[SELF.e[1].s][1].remove("/")
+                            bootCandidates[SELF.e[1].s][1].setLabel(F)
                             updateCandidates()
                         end
                     }
