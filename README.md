@@ -12,10 +12,10 @@ For **MineOS**, you need to find app with name `Cyan BIOS`. That's it!
 ## Lua 5.3
 This function is the basic Lua 5.3 interpreter with the following functions:
 
-* os.sleep([timeout: number]) -- Basic delay (You can interrupt this via CTRL+ALT+C).
+* os.sleep([timeout: number])
 * proxy(componentName: string): component proxy or nil -- Like component.eeprom in OpenOS/MineOS.
 * read(lastInput: string or nil): string or nil -- Very basic read, like io.read()
-* print(...) -- Very basic print.
+* print(...)
 
 ## Internet boot
 This function downloads the specified file by URL and executes it.
