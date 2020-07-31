@@ -25,7 +25,7 @@ This functions renames/formats the selected file system.
 ## Whitelist access
 That's feature can protect your BIOS from other people and can ask trusted user for boot.
 
-# How to build own Cyan BIOS?
+## How to build own Cyan BIOS?
 You need this lzss library, which is here: https://github.com/BrightYC/Other/blob/master/lzss.lua
 To compress, use this code: https://raw.githubusercontent.com/BrightYC/Cyan/master/compress.lua
 It can run natively, in OpenComputers, or whatever the lua code can interpret.
