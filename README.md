@@ -7,7 +7,7 @@ For **OpenOS**, just run this command(You are need an internet card to run this)
 wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua && installer.lua
 ```
 
-For **MineOS**, you need to find app with name `Cyan BIOS`. That's it!
+For **MineOS**, you need to find app with name `Cyan BIOS`.
 ## Lua 5.3
 This function is the basic Lua 5.3 interpreter with the following functions:
 
@@ -23,7 +23,7 @@ This function downloads the specified file by URL and executes it.
 This functions renames/formats the selected file system.
 
 ## Whitelist access
-That's feature can protect your BIOS from other people and can ask trusted user for boot.
+This feature can prevent untrusted boot (Require input from trusted user)
 
 ## How to build own Cyan BIOS?
 You need this lzss library, which is here: https://github.com/BrightYC/Other/blob/master/lzss.lua
