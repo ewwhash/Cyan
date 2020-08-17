@@ -26,14 +26,14 @@ This functions renames/formats the selected file system.
 This feature can prevent untrusted boot (Require input from trusted user)
 
 ## How to build own Cyan BIOS?
-You need this lzss library, which is here: https://github.com/BrightYC/Other/blob/master/lzss.lua
-To compress, use this code: https://raw.githubusercontent.com/BrightYC/Cyan/master/compress.lua
-It can run natively, in OpenComputers, or whatever the lua code can interpret.
-And you need to place uncompressed code with name "minified.lua"
+You need this lzss library, which is here: https://github.com/BrightYC/Other/blob/master/lzss.lua   
+To compress, use this code: https://raw.githubusercontent.com/BrightYC/Cyan/master/compress.lua  
+It can run natively, in OpenComputers, or whatever the lua code can interpret.  
+And you need to place uncompressed code with name "minified.lua"  
 
 ## Images/Videos
 
-[![](https://img.youtube.com/vi/89K8mWFEJKw/0.jpg)](https://www.youtube.com/watch?v=89K8mWFEJKw)
+https://www.youtube.com/watch?v=89K8mWFEJKw
 ![](https://i.imgur.com/WWiX2tQ.png)
 ![](https://i.imgur.com/pnFC0cO.png)
 ![](https://i.imgur.com/6QXw6LX.png)
