@@ -222,10 +222,10 @@ local function bootPreview(image, booting, y, foreground)
         booting and "ing" or "",
         image[6],
         image[2],
-        cutText(image[3], 6)
+        cutText(image[3], booting and width > 80 and 36 or 6)
     ) or ("Boot from %s (%s) is not available"):format(
         image[2],
-        cutText(image[3], 6)
+        cutText(image[3], booting and width > 80 and 36 or 6)
     ), F, foreground)
 end
 
