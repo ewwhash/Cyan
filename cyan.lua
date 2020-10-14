@@ -234,7 +234,7 @@ local function addCandidate(address)
 
     if proxy and proxy.spaceTotal and address ~= Computer.tmpAddress() then
         bootCandidates[#bootCandidates + 1] = {
-            proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Disk usage %s%% / %s / %s"):format(
+            proxy, proxy.getLabel() or "N/A", address, cutText(proxy.getLabel() or "N/A", 6), ("Storage %s%% / %s / %s"):format(
                 math.floor(proxy.spaceUsed() / (proxy.spaceTotal() / 100)),
                 proxy.isReadOnly() and "Read only" or "Read & Write",
                 proxy.spaceTotal() < 2 ^ 20 and "FDD" or proxy.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID"
