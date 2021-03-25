@@ -20,7 +20,7 @@ local function QA(text)
     end
 end
 
-if QA("Create whitelist for bootloader access?") then
+if QA("Create a whitelist?") then
     repeat
         io.write('Whitelist example: {"hohserg", "Fingercomp", "Saghetti"}\nWhitelist: ')
         users = read()

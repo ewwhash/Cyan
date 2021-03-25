@@ -272,8 +272,10 @@ local function boot(image)
 
         image[1].close(handle)
         local function run()
-            clear()
-            bootPreview(image, 1, centerY)
+            if gpu and screen then
+                clear()
+                bootPreview(image, 1, centerY) 
+            end
             if Computer.getBootAddress() ~= image[3] then
                 Computer.setBootAddress(image[3])
             end
@@ -385,8 +387,8 @@ local function bootloader()
     end
 
     correction = createElements(main, {
-        {"Power off", Computer.shutdown},
-        {"Lua", function()
+        {"Halt", Computer.shutdown},
+        {"Shell", function()
             clear()
             env = setmetatable({
                 print = print,
@@ -407,7 +409,7 @@ local function bootloader()
                 goto LOOP
             end
         end},
-        internet and {"Internet boot", function()
+        internet and {"URL boot", function()
             url = input("URL: ", F, centerY + 6, 1)
 
             if url and #url > 0 then
@@ -424,7 +426,7 @@ local function bootloader()
                     end
 
                     paletteNotOverwrited = 1
-                    status(select(2, execute(data, "=Internet boot")) or "is empty", "Internet boot", math.huge, 0)
+                    status(select(2, execute(data, "=URL boot")) or "is empty", "URL boot", math.huge, 0)
                 else
                     status("Invalid URL", "Internet boot", math.huge, 0)
                 end

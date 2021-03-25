@@ -1,7 +1,7 @@
-**Advanced bootloader with Lua REPL, protected access and cool interface (OpenComputers)**
+**Advanced bootloader for OpenComputers**
 ## Installation
 
-For **OpenOS**, just run this command(You are need an internet card to run this):
+For **OpenOS**, just run this command:
 
 ```
 wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua && installer.lua
@@ -9,27 +9,22 @@ wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua &&
 
 For **MineOS**, you need to find app with name `Cyan BIOS`.
 ## Lua 5.3
-This function is the basic Lua 5.3 interpreter with the following functions:
+Lua REPL with implemented functions:
 
 * os.sleep([timeout: number])
-* proxy(componentName: string): component proxy or nil -- Like component.eeprom in OpenOS/MineOS.
-* read(lastInput: string or nil): string or nil -- Very basic read, like io.read()
+* proxy(componentName: string): component proxy or nil
+* read(lastInput: string or nil): string or nil
 * print(...)
 
 ## Internet boot
-This function downloads the specified file by URL and executes it.
-
-## Rename/Format
-This functions renames/formats the selected file system.
+Executes file from specified URL
 
 ## Whitelist access
-This feature can prevent untrusted boot (Require input from trusted user)
+Prevents booting, for example, if computer stays in some private places.
+To boot, it needs some input from user that defined in whitelist (It can be edited manually or from installer)
 
 ## How to build own Cyan BIOS?
-You need this lzss library, which is here: https://github.com/BrightYC/Other/blob/master/lzss.lua   
-To compress, use this code: https://raw.githubusercontent.com/BrightYC/Cyan/master/compress.lua  
-It can run natively, in OpenComputers, or whatever the lua code can interpret.  
-And you need to place uncompressed code with name "minified.lua"  
+Just run compress.lua (before that minify the code, for example here: https://mothereff.in/lua-minifier) and make sure that minified.lua file stored in the same folder that compress.lua
 
 ## Images/Videos
 
