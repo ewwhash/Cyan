@@ -281,7 +281,7 @@ local function boot(image)
             end
             paletteNotOverwrited = 1
             success, err = execute(data, "=" .. image[6])
-            paletteNotOverwrited = configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
+            paletteNotOverwrited = success and Computer.shutdown or configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
         end
 
         data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, run) or run()
