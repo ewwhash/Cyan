@@ -4,7 +4,7 @@
 For **OpenOS**, just run this command:
 
 ```
-wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua & installer.lua
+wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua; installer.lua
 ```
 
 For **MineOS**, you need to find app with name `Cyan BIOS`.
