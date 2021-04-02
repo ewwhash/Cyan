@@ -228,7 +228,7 @@ flashButton.onTouch = function()
     end
 
     status(localization.downloading)
-    local data, reason = internet.request("http://localhost:8080/cyan.comp")
+    local data, reason = internet.request("https://github.com/BrightYC/Cyan/blob/master/cyan.comp?raw=true")
 
     if data then
         filesystem.write(("/Mounts/%s/cyan"):format(computer.tmpAddress()), data)

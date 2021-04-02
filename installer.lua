@@ -44,7 +44,7 @@ if QA("Create a whitelist?") then
 end
 
 readOnly = QA("Make EEPROM read only?")
-os.execute("wget -f http://localhost:8080/cyan.comp /tmp/cyan")
+os.execute("wget -f https://github.com/BrightYC/Cyan/blob/master/cyan.comp?raw=true /tmp/cyan")
 if QA("Reboot?", true) then
     local success, reason = eeprom.set(([=[
         local config = [[%s]]
