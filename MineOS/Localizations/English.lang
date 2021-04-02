@@ -4,10 +4,10 @@
     requireUserPressOnBoot = "Wait for user input on boot:",
     username = "Enter player name",
     invalidUsername = "Invalid username",
-    freeSpaceLimit = "You have exceeded the user limit",
+    freeSpaceLimit = "You have exceeded the whitelist limit",
     deleteUser = "Delete user",
-    flashing = "Flashing...",
-    makingReadOnly = "Making EEPROM read only...",
+    downloading = "Downloading...",
+    isReadOnly = "EEPROM is read only. Please insert an not read-only EEPROM",
     flash = "Flash",
     reboot = "Reboot",
     done = "Done!"

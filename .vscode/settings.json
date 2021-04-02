@@ -1,0 +1,11 @@
+{
+    "Lua.diagnostics.globals": [
+        "component",
+        "computer",
+        "F",
+        "unicode"
+    ],
+    "Lua.diagnostics.disable": [
+        "unbalanced-assignments"
+    ]
+}

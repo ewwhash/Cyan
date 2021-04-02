@@ -6,8 +6,8 @@
     invalidUsername = "Некорректное имя пользователя",
     freeSpaceLimit = "Вы превысили лимит пользователей",
     deleteUser = "Удалить пользователя",
-    flashing = "Прошивка EEPROM...",
-    makingReadOnly = "Установка EEPROM только для чтения...",
+    downloading = "Загрузка...",
+    isReadOnly = "EEPROM находится в режиме чтения. Пожалуйста, вставьте новый EEPROM.",
     flash = "Прошить",
     reboot = "Перезагрузка",
     done = "Готово!"

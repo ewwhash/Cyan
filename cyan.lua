@@ -1,11 +1,11 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, paletteNotOverwrited, centerY, users, requestUserPressOnBoot, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate = {"/init.lua", "/boot.lua", "/OS.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, paletteOverwrite, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate, config = {"/OS.lua", "/init.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and ((signal[1]:match"ey" and not users[signal[5]]) or signal[1]:match"cl" and not users[signal[4]]) then
-        return table.unpack(signal)
+    if #signal > 0 and #config[2] > 0 and (signal[1]:match("ey") and not config[2][signal[5]] or signal[1]:match("cl") and not config[2][signal[4]]) then
+        return ""
     end
 
     key[signal[4] or ""] = signal[1]:match"do" and 1
@@ -26,9 +26,9 @@ local function execute(code, stdin, env)
 
     if chunk then
         return xpcall(chunk, debug.traceback)
-    else
-        return F, err
     end
+        
+    return F, err
 end
 
 local function proxy(componentType)
@@ -64,39 +64,42 @@ local function sleep(timeout, breakCode, onBreak)
 end
 
 local function configureSystem()
-    gpu, internet, eeprom, screen = proxy"gp", proxy"internet", Component.list"pro"(), Component.list"sc"()
-    eepromData = eeprom and invoke(eeprom, "getData") or eepromData
+    gpu, internet, eeprom, screen = proxy"gp", proxy"net", Component.list"pro"(), Component.list"sc"()
 
     if gpu and screen then
+        paletteOverwrite = F
         gpu.bind((screen))
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
         width, height = gpu.maxResolution()
         gpuAddress = gpu.address
-        centerY = height / 2
         return 1
     end
 end
 
 configureSystem()
-users = select(2, execute(eepromData:match"#(.+)#" or "{}"))
-requestUserPressOnBoot = eepromData:match"*"
-users.n = #users
-for i = 1, #users do
-    users[users[i]], users[i] = 1, F
-    users.n = users.n + 1
+eepromData = invoke(eeprom, "getData")
+needUpdate, config = execute(eepromData)
+config = type(config) == "table" and config or {(#eepromData == 36 and eepromData or ""), {}, 0}
+config[2].t = "{"
+for i = 1, #config[2] do
+    config[2][config[2][i]] = 1
+    config[2].t = config[2].t .. '"' .. config[2][i] .. '",' 
 end
+config[2].t = config[2].t .. "}"
 
 function Component.invoke(address, method, ...)
     if address == eeprom then
         if method == "setData" then
-            eepromData = not ({...})[2] and eepromData:match"(.+)#{" and eepromData:gsub("(.+)#{", (...) .. "#{") or (...)
-            return eeprom and invoke(eeprom, method, eepromData)
+            config[1] = (...) or ""
+            return eeprom and invoke(eeprom or "", "setData", ("{'%s',%s,%s}"):format((...) or "", config[2].t, config[3]))
         elseif method == "getData" then
-            return not (...) and eepromData:match"(.+)#{" or eepromData
+            return config[1]
+        elseif method == "getDataSize" then
+            return 36
         end
-    elseif method == "set" and paletteNotOverwrited and address == gpuAddress then
-        paletteNotOverwrited = F
+    elseif method == "set" and address == gpuAddress and paletteOverwrite then
+        paletteOverwrite = F
         gpu.setPaletteColor(9, 0x969696)
         gpu.setPaletteColor(11, 0xb4b4b4)
     end
@@ -105,7 +108,7 @@ function Component.invoke(address, method, ...)
 end
 
 Computer.setBootAddress = function(...) return Component.invoke(eeprom, "setData", ...) end
-Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData", ...) end
+Computer.getBootAddress = function(...) return Component.invoke(eeprom, "getData") end
 
 local function set(x, y, string, background, foreground)
     gpu.setBackground(background or 0x002b36)
@@ -131,11 +134,13 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(Unicode.len(text)), y, text, background, foreground)
 end
 
-local function status(text, title, wait, breakCode, onBreak)
-    if configureSystem() then
+local function status(text, title, wait, breakCode, onBreak, err, actionImmidiately)    
+    if actionImmidiately then
+        onBreak()
+    elseif configureSystem() then
         split(text)
         clear()
-        local y = math.ceil(centerY - #lines / 2)
+        local y = math.ceil(height / 2 - #lines / 2)
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xFFFFFF)
@@ -147,6 +152,8 @@ local function status(text, title, wait, breakCode, onBreak)
         end
 
         return sleep(wait or 0, breakCode, onBreak)
+    elseif err then
+        error(text)
     end
 end
 
@@ -271,20 +278,18 @@ local function boot(image)
         end
 
         image[1].close(handle)
-        local function run()
+        status("Hold any button to boot", F, math.huge, 0, function()
             if gpu and screen then
                 clear()
-                bootPreview(image, 1, centerY) 
+                bootPreview(image, 1, height / 2)
             end
             if Computer.getBootAddress() ~= image[3] then
                 Computer.setBootAddress(image[3])
             end
-            paletteNotOverwrited = 1
+            paletteOverwrite = 1
             success, err = execute(data, "=" .. image[6])
-            paletteNotOverwrited = success and Computer.shutdown() or configureSystem() and status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown) or error(err)
-        end
-
-        data = requestUserPressOnBoot and not userChecked and status("Hold any button to boot", F, math.huge, 0, run) or run()
+            status(err, [[¯\_(ツ)_/¯]], math.huge, 0, Computer.shutdown, err, success)
+        end, F, userChecked or config[3] == 0)
     end
 end
 
@@ -372,7 +377,7 @@ local function bootloader()
     main = createWorkspace()
 
     if #bootCandidates > 0 then
-        createElements(main, {}, F, centerY - 3, 8, 3)
+        createElements(main, {}, F, height / 2 - 3, 8, 3)
         for i = 1, #bootCandidates do
             main.e[1].e[i] = {
                 function()
@@ -410,7 +415,7 @@ local function bootloader()
             end
         end},
         internet and {"URL boot", function()
-            url = input("URL: ", F, centerY + 6, 1)
+            url = input("URL: ", F, height / 2 + 6, 1)
 
             if url and #url > 0 then
                 local handle, data, chunk = internet.request(url, F, F, {["user-agent"]="Cyan"}), ""
@@ -425,21 +430,21 @@ local function bootloader()
                         goto LOOP
                     end
 
-                    paletteNotOverwrited = 1
+                    paletteOverwrite = 1
                     status(select(2, execute(data, "=URL boot")) or "is empty", "URL boot", math.huge, 0)
                 else
                     status("Invalid URL", "Internet boot", math.huge, 0)
                 end
             end
         end} or F
-    }, F, centerY + (#bootCandidates > 0 and 1 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
+    }, F, height / 2 + (#bootCandidates > 0 and 1 or 0), #bootCandidates > 0 and 6 or 8, #bootCandidates > 0 and 1 or 3) + 1
 
     main.o = function(SELF)
         clear()
 
         if #bootCandidates > 0 then
-            bootPreview(bootCandidates[SELF.e[1].s], F, centerY + 4, 0xFFFFFF)
-            centrizedSet(centerY + 6, bootCandidates[SELF.e[1].s][5])
+            bootPreview(bootCandidates[SELF.e[1].s], F, height / 2 + 4, 0xFFFFFF)
+            centrizedSet(height / 2 + 6, bootCandidates[SELF.e[1].s][5])
 
             for j = correction, #SELF.e[2].e do
                 SELF.e[2].e[j] = F
@@ -451,7 +456,7 @@ local function bootloader()
                 else
                     SELF.e[2].e[correction] = {
                         "Rename", function()
-                            newLabel = input("New label: ", F, centerY + 6, 1)
+                            newLabel = input("New label: ", F, height / 2 + 6, 1)
 
                             if newLabel and #newLabel > 0 then
                                 bootCandidates[SELF.e[1].s][1].setLabel(newLabel)
@@ -469,7 +474,7 @@ local function bootloader()
                 end
             end
         else
-            centrizedSet(centerY + 3, "No drives available", F, 0xFFFFFF)
+            centrizedSet(height / 2 + 4, "No drives available", F, 0xFFFFFF)
         end
     end
 
@@ -485,4 +490,4 @@ status("Hold CTRL to stay in bootloader", F, .9, 29, bootloader)
 for i = 1, #bootCandidates do
     boot(bootCandidates[i])
 end
-gpu = configureSystem() and bootloader() or error"No drives available"
+status("No drives available", F, 0, F, bootloader, F, 1)
