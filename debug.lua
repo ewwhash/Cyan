@@ -1,4 +1,4 @@
-local handle, data, chunk = component.proxy(component.list("internet")()).request("https://raw.githubusercontent.com/BrightYC/Cyan/master/cyan.lua"), ""
+local handle, data, chunk = component.proxy(component.list("internet")()).request("http://localhost:8080/cyan.lua"), ""
 
 while true do
     chunk = handle.read(math.huge)

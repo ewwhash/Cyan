@@ -1,4 +1,4 @@
-local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, paletteOverwrite, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate, config = {"/OS.lua", "/init.lua"}, {}, {}, unicode, computer, component, component.invoke
+local bootFiles, bootCandidates, key, Unicode, Computer, Component, invoke, paletteOverwrite, userChecked, width, height, lines, screen, internet, gpu, gpuAddress, eeprom, eepromData, needUpdate, config = {"/init.lua", "/OS.lua"}, {}, {}, unicode, computer, component, component.invoke
 
 local function pullSignal(timeout)
     local signal = {Computer.pullSignal(timeout)}
@@ -168,10 +168,10 @@ local function input(prefix, X, y, centrized, lastInput)
     signalType, _, char, code = pullSignal(.5)
 
     if signalType:match"do" then
-        if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen - 1 then
+        if char >= 32 and Unicode.len(prefixLen .. input) < width - prefixLen then
             input = Unicode.sub(input, 1, cursorPos - 1) .. Unicode.char(char) .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos + 1
-        elseif char == 8 and #input > 0 then
+        elseif char == 8 and #input > 0 and cursorPos > 1 then
             input = Unicode.sub(Unicode.sub(input, 1, cursorPos - 1), 1, -2) .. Unicode.sub(input, cursorPos, -1)
             cursorPos = cursorPos - 1
         elseif char == 13 then
