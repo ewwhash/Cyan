@@ -4,6 +4,10 @@
 For **OpenOS**, just run this command:
 
 ```
+pastebin run irfixAqG
+```
+Or if you have a problem with accessing pastebin.com use this:
+```
 wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua; installer.lua
 ```
 
