@@ -11,7 +11,7 @@ Or if you have a problem with accessing pastebin.com use this:
 wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua; installer.lua
 ```
 
-For **MineOS**, you need to find app with name `Cyan BIOS`.
+For **MineOS**, you need to find an app that named `Cyan BIOS`.
 ## Lua 5.3
 Lua REPL with implemented functions:
 
