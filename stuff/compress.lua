@@ -140,16 +140,17 @@ return lzss
 ]===]
 
 local lzss = load(lzss, "=lzss.lua")
+lzss = lzss and lzss() or error("This program requires Lua 5.3 or higher")
 
-if lzss then
-    lzss = lzss()
-else
-    error("This program/library requires lua 5.3 or higher")
-end
-
-local file = io.open("minified.lua", "r")
-local data = file:read("*a")
+local file, data = io.open("minified.lua", "r")
+data = file:read("*a")
 file:close()
 
-local file = io.open("cyan.comp", "w")
-file:write(lzss.getSXF(lzss.compress(data), true))
+file = io.open("cyan.bin", "w")
+file:write(
+    lzss.getSXF(
+        lzss.compress(data), 
+        true
+    )
+)
+file:close()

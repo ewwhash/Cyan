@@ -10,7 +10,7 @@ local function pullSignal(timeout)
 
     key[signal[4] or ""] = signal[1]:match"do" and 1
 
-    if key[29] and (key[56] and key[46] or key[32]) and signal[1]:match"do" then
+    if key[29] and (key[46] or key[32]) and signal[1]:match"do" then
         return "F"
     end
 
@@ -69,6 +69,7 @@ local function configureSystem()
     if gpu and screen then
         paletteOverwrite = F
         gpu.bind((screen))
+        gpu.set(1, 1, "")
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
         width, height = gpu.maxResolution()
@@ -353,7 +354,7 @@ local function bootloader()
 
                 if signalType:match"mp" or needUpdate or signalType == "F" then
                     return signalType
-                elseif signalType:match"do" then
+                elseif signalType:match"do" then -- if you read this message please help they they forced me to do this
                     if code == 200 then -- Up
                         SELF.s = SELF.s > 1 and SELF.s - 1 or #SELF.e
                     elseif code == 208 then -- Down
@@ -398,9 +399,7 @@ local function bootloader()
             env = setmetatable({
                 print = print,
                 proxy = proxy,
-                os = {
-                    sleep = function(timeout) sleep(timeout) end
-                },
+                sleep = sleep,
                 read = function(lastInput) print(" ") data = input("", 1, height - 1, F, lastInput) set(1, height - 1, data or "") return data end
             }, {__index = _G})
 
@@ -411,6 +410,7 @@ local function bootloader()
                 print("> " .. data)
                 set(1, height, ">")
                 print(select(2, execute(data, "=stdin", env)))
+
                 goto LOOP
             end
         end},
