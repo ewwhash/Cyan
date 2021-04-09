@@ -1,12 +1,12 @@
-local bootFiles, bootCandidates, key, userChecked, width, height, gpu, redraw, lines, elementsBootables = {"/init.lua", "OS.lua"}, {}, {}
+local bootFiles, bootCandidates, key, users, userChecked, width, height, gpu, redraw, lines, elementsBootables = {"/init.lua", "/OS.lua"}, {}, {}, {steve = true}
 
 local function pullSignal(timeout)
     local signal = {computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    -- if #signal > 0 and #config[2] > 0 and (signal[1]:match("ey") and not config[2][signal[5]] or signal[1]:match("cl") and not config[2][signal[4]]) then
-    --     return ""
-    -- end
+    if #signal > 0 and #users > 0 and (signal[1]:match("ey") and not users[signal[5]] or signal[1]:match("cl") and not users[signal[4]]) then
+        return ""
+    end
 
     key[signal[4] or ""] = signal[1]:match"do" and 1
 
@@ -211,12 +211,12 @@ local function addCandidate(address)
         bootCandidates[i] = {
             r = proxy,
             p = function(booting, y)
-                centrizedSet(y, bootFile and ("Boot%s /%s from %s (%s)"):format(
+                centrizedSet(y, bootFile and ("Boot%s %s from %s (%s)"):format(
                     booting and "ing" or "",
                     bootFile,
                     cutText(proxy.getLabel() or "N/A", 6),
                     cutText(address, booting and width > 80 and 36 or 6)
-                ) or ("Boot from /%s (%s) isn't available"):format(
+                ) or ("Boot from %s (%s) isn't available"):format(
                     proxy.getLabel() or "N/A",
                     cutText(address, booting and width > 80 and 36 or 6)
                 ), F, not booting and 0xFFFFFF)
