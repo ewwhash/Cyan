@@ -6,9 +6,7 @@
     invalidUsername = "Invalid username",
     freeSpaceLimit = "You have exceeded the whitelist limit",
     deleteUser = "Delete user",
-    downloading = "Downloading...",
     isReadOnly = "EEPROM is read only. Please insert an not read-only EEPROM",
     flash = "Flash",
-    reboot = "Reboot",
-    done = "Done!"
+    reboot = "Reboot"
 }
