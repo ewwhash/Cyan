@@ -1,23 +1,24 @@
-local bootFiles, bootCandidates, key, users, userChecked, width, height, gpu, redraw, lines, elementsBootables = {"/init.lua", "/OS.lua"}, {}, {}, {steve = true}
+local bootFiles, bootCandidates, keys, users, requireUserInput, aspectRatioW, aspectRatioH, screenAddress, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = {"/init.lua", "/OS.lua"}, {}, {}, {n = 0}, F, 0, 0
 
 local function pullSignal(timeout)
     local signal = {computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and #users > 0 and (signal[1]:match("ey") and not users[signal[5]] or signal[1]:match("cl") and not users[signal[4]]) then
+    if #signal > 0 and users.n > 0 and (signal[1]:match("ey") and not users[signal[5]] or signal[1]:match("cl") and not users[signal[4]]) then
         return ""
     end
 
-    key[signal[4] or ""] = signal[1]:match"do" and 1
+    keys[signal[4] or ""] = signal[1]:match"do" and 1
 
-    if key[29] and (key[46] or key[32]) and signal[1]:match"do" then
+    if keys[29] and (keys[46] or keys[32]) and signal[1]:match"do" then
         return "F"
     end
 
     return table.unpack(signal)
 end
 
-local function execute(code, stdin, env, palette)
+local function execute(code, stdin, env, palette, call)
+    call = call or xpcall
     local chunk, err = load("return " .. code, stdin, F, env)
 
     if not chunk then
@@ -36,7 +37,7 @@ local function execute(code, stdin, env, palette)
             return env(address, method, ...)
         end or env
 
-        return xpcall(chunk, debug.traceback)
+        return call(chunk, debug.traceback)
     end
         
     return F, err
@@ -62,7 +63,7 @@ local function sleep(timeout, breakCode, onBreak)
 
     if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
         return 1, onBreak and onBreak()
-    elseif computer.uptime() <= deadline then
+    elseif computer.uptime() < deadline then
         goto LOOP
     end
 end
@@ -84,20 +85,30 @@ local function clear()
 end
 
 local function centrize(len)
-    return math.ceil(width / 2 - len / 2)
+    return math.floor(width / 2 - len / 2)
 end
 
 local function centrizedSet(y, text, background, foreground)
     set(centrize(unicode.len(text)), y, text, background, foreground)
 end
 
-local function gpuCheck()
-    gpu = proxy"gp"
+local function checkGPU()
+    gpu, screen = proxy"gp", proxy"screen"
+    computer.beep()
 
-    if gpu and gpu.bind((component.list"sc"())) then
+    if gpu and screen then
+        local currentAspectRatioW, currentAspectRatioH, proportion = screen.getAspectRatio()
+        gpu.bind((screen.address))
+        aspectRatioW, aspectRatioH, screenAddress = currentAspectRatioW, currentAspectRatioH, screen.address
+        width, height = gpu.maxResolution()
+        proportion = 2 * ( 16 * currentAspectRatioW - 4.5 ) / ( 16 * currentAspectRatioH - 4.5)
+        height = math.min(width / proportion, width, math.sqrt(width * height / proportion))
+        width = height * proportion
+        gpu.setResolution(width, height)
+
+        gpu.set(1, 1, '')
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
-        width, height = gpu.maxResolution()
         clear()
         return 1
     end
@@ -105,15 +116,14 @@ local function gpuCheck()
     width, height = 0, 0
 end
 
-local function status(text, title, wait, breakCode, onBreak, err, actionImmidiately)    
-    if actionImmidiately then
-        onBreak()
-    elseif gpuCheck() then
+local function status(text, title, wait, breakCode, onBreak, err, forceBreak)
+    if checkGPU() then
         split(text)
         local y = math.ceil(height / 2 - #lines / 2)
+        y = forceBreak and onBreak() or y
 
         if title then
-            centrizedSet(y - 1, title, 0x002b36, 0xFFFFFF)
+            centrizedSet(y - 1, title, 0x002b36, 0xffffff)
             y = y + 1
         end
         for i = 1, #lines do
@@ -121,7 +131,7 @@ local function status(text, title, wait, breakCode, onBreak, err, actionImmidiat
             y = y + 1
         end
 
-        return sleep(wait or 0, breakCode, onBreak)
+        sleep(wait or 0, breakCode or 0, onBreak)
     elseif err then
         error(text)
     end
@@ -131,53 +141,59 @@ local function cutText(text, maxLength)
     return unicode.len(text) > maxLength and unicode.sub(text, 1, maxLength) .. "…" or text
 end
 
-local function input(prefix, X, y, centrized, lastInput)
-    local input, prefixLen, cursorPos, firstBlink, cursorState, x, cursorX, signalType, char, code, _ = "", unicode.len(prefix), 1, 1
+local function input(prefix, y, centrized, historyText, foreground, env)
+    local text, prefixLen, cursorPos, cursorState, cursorX, x, contextCache, signalType, char, code, _ = "", unicode.len(prefix), 1, 1
+    foreground = foreground or 0x8cb9c5
 
     ::LOOP::
-    signalType, _, char, code = pullSignal(firstBlink and 0 or 0.5)
+        x = centrized and centrize(unicode.len(text) + prefixLen) or 1
+        cursorX = x + prefixLen + cursorPos - 1
 
-    if signalType:match"do" then
-        if char >= 32 and unicode.len(prefixLen .. input) < width - prefixLen then
-            input = unicode.sub(input, 1, cursorPos - 1) .. unicode.char(char) .. unicode.sub(input, cursorPos, -1)
-            cursorPos = cursorPos + 1
-        elseif char == 8 and #input > 0 and cursorPos > 1 then
-            input = unicode.sub(unicode.sub(input, 1, cursorPos - 1), 1, -2) .. unicode.sub(input, cursorPos, -1)
-            cursorPos = cursorPos - 1
-        elseif char == 13 then
-            fill(1, y, width, 1)
-            return input
-        elseif code == 203 and cursorPos > 1 then
-            cursorPos = cursorPos - 1
-        elseif code == 205 and cursorPos <= unicode.len(input) then
-            cursorPos = cursorPos + 1
-        elseif code == 200 and lastInput then
-            input = lastInput
-            cursorPos = unicode.len(lastInput) + 1
-        elseif code == 208 and lastInput then
-            input = ""
-            cursorPos = 1
+        fill(1, y, width, 1)
+        set(x, y, prefix .. text, F, foreground)
+        if cursorX <= width then
+            set(cursorX, y, gpu.get(cursorX, y), cursorState and foreground or 0x002b36, cursorState and 0x002b36 or foreground)
         end
 
-        cursorState = 1
-    elseif signalType:match"cl" then
-        input = unicode.sub(input, 1, cursorPos - 1) .. char .. unicode.sub(input, cursorPos, -1)
-        cursorPos = cursorPos + unicode.len(char)
-    elseif signalType:match"mp" or signalType == "F" then
-        redraw = signalType:match"mp" and 1
-        return
-    elseif not signalType:match"up" then
-        cursorState = not cursorState
-    end
+        signalType, _, char, code = pullSignal(.5)  
 
-    firstBlink = F
-    x = centrized and centrize(unicode.len(input) + prefixLen) or X
-    cursorX = x + prefixLen + cursorPos - 1
-    fill(1, y, width, 1)
-    set(x, y, prefix .. input, 0x002b36, 0xFFFFFF)
-    if cursorX <= width then
-        set(cursorX, y, gpu.get(cursorX, y), cursorState and 0xFFFFFF or 0x002b36, cursorState and 0x002b36 or 0xFFFFFF)
-    end
+        if signalType:match"do" then
+            if code == 203 and cursorPos > 1 then
+                cursorPos = cursorPos - 1
+            elseif code == 205 and cursorPos <= unicode.len(text) then
+                cursorPos = cursorPos + 1
+            elseif code == 200 and historyText then
+                text = historyText
+                cursorPos = unicode.len(historyText) + 1
+            elseif code == 208 and historyText then
+                text = ""
+                cursorPos = 1
+            elseif code == 15 and env then
+                for key in pairs(table) do
+                    if key:sub(1, #text) == text then
+                        contextCache = table[key]
+                    end
+                end
+            elseif code == 14 and #text > 0 and cursorPos > 1 then
+                text = keys[29] and "" or unicode.sub(unicode.sub(text, 1, cursorPos - 1), 1, -2) .. unicode.sub(text, cursorPos, -1)
+                cursorPos = keys[29] and 1 or cursorPos - 1
+            elseif code == 28 then
+                return text
+            elseif char >= 32 and unicode.len(prefixLen .. text) < width - prefixLen then
+                text = unicode.sub(text, 1, cursorPos - 1) .. unicode.char(char) .. unicode.sub(text, cursorPos, -1)
+                cursorPos = cursorPos + 1
+            end
+            
+            cursorState = 1
+        elseif signalType:match"cl" then
+            text = unicode.sub(text, 1, cursorPos - 1) .. char .. unicode.sub(text, cursorPos, -1)
+            cursorPos = cursorPos + unicode.len(char)
+        elseif signalType:match"mp" or signalType == "F" then
+            redraw = signalType:match"mp" and 1
+            return
+        elseif not signalType:match"up" then
+            cursorState = not cursorState
+        end
     goto LOOP
 end
 
@@ -219,37 +235,39 @@ local function addCandidate(address)
                 ) or ("Boot from %s (%s) isn't available"):format(
                     proxy.getLabel() or "N/A",
                     cutText(address, booting and width > 80 and 36 or 6)
-                ), F, not booting and 0xFFFFFF)
+                ), F, not booting and 0xffffff)
             end
         }
 
         bootCandidates[i].b = function()
-            local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
+            if bootFile then
+                local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
 
-            ::LOOP::
-            chunk = proxy.read(handle, math.huge)
-    
-            if chunk then
-                data = data .. chunk
-                goto LOOP
+                ::LOOP::
+                chunk = proxy.read(handle, math.huge)
+        
+                if chunk then
+                    data = data .. chunk
+                    goto LOOP
+                end
+        
+                proxy.close(handle)
+                status("Hold any button to boot", F, math.huge, 0, function()
+                    if gpu then
+                        clear()
+                        bootCandidates[i].p(1, height / 2)
+                    end
+                    if currentBootAddress ~= address then
+                        computer.setBootAddress(address)
+                    end
+                    success, err = execute(data, "=" .. bootFile, setmetatable({}, {__index = _G}), 1)
+                    status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, 1  )
+                end, F, userChecked or not requireUserInput)
             end
-    
-            proxy.close(handle)
-            status("Hold any button to boot", F, math.huge, 0, function()
-                if gpu then
-                    clear()
-                    bootCandidates[i].p(1, height / 2)
-                end
-                if computer.getBootAddress() ~= address then
-                    computer.setBootAddress(address)
-                end
-                success, err = execute(data, "=" .. bootFile, setmetatable({}, {__index = _G}), 1)
-                status(err, [[¯\_(ツ)_/¯]], math.huge, 0, computer.shutdown, err, success)
-            end, F, 1) -- or config[3] == 0 --todo
         end or computer.uptime
 
         elementsBootables[i] = {
-            proxy.getLabel() or "N/A",
+            cutText(proxy.getLabel() or "N/A", 6),
             bootCandidates[i].b
         }
     end
@@ -258,17 +276,17 @@ end
 local function updateCandidates(selected)
     bootCandidates = {}
     elementsBootables = {s = selected or 1}
-    addCandidate(computer.getBootAddress())
+    addCandidate(currentBootAddress)
 
     for address in next, component.list"file" do
-        addCandidate(address ~= computer.getBootAddress() and address or "")
+        addCandidate(address ~= currentBootAddress and address or "")
     end
 end
 
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, _ =
+    local drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, _ =
     
     function(elements, y, spaces, borderHeight, drawSelected, onDraw)
         local elementsLineLength, x = 0
@@ -296,49 +314,50 @@ local function bootloader()
         end
     end
 
-    draw = function()
+    draw = checkGPU() and function()
         y = height / 2 - (#bootCandidates > 0 and -1 or 1)
-
+    
         clear()
         drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
             if #bootCandidates > 0 then
-                _ = bootCandidates[elementsBootables.s].r
-
+                drive = bootCandidates[elementsBootables.s].r
+    
                 bootCandidates[elementsBootables.s].p(F, y + 3)
-
+    
                 centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                    math.floor(_.spaceUsed() / (_.spaceTotal() / 100)),
-                    _.isReadOnly() and "Read only" or "Read & Write",
-                    _.spaceTotal() < 2 ^ 20 and "FDD" or _.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
+                    math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                    drive.isReadOnly() and "Read only" or "Read & Write",
+                    drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
                 )
-
+    
                 for i = correction, #elementsPrimary do
                     elementsPrimary[i] = F
                 end
-
-                if not _.isReadOnly() then
+    
+                if not drive.isReadOnly() then
                     elementsPrimary[correction] = {"Rename", function()
-                        fill(1, y + 3, width, 3)
-                        newLabel = input("New label: ", F, y + 3, 1)
+                        clear()
+                        centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
+                        newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
             
                         if newLabel and #newLabel > 0 then
-                            _.setLabel(newLabel)
+                            drive.setLabel(newLabel)
                             updateCandidates(elementsBootables.s)
                         end
                     end}
-
+    
                     elementsPrimary[correction + 1] = {"Format", function()
-                        _.remove("/")
-                        _.setLabel(F)
+                        drive.remove("/")
+                        drive.setLabel(F)
                         updateCandidates(elementsBootables.s)
                     end}
                 end
             else
-                centrizedSet(y + 3, "No drives available", F, 0xFFFFFF)
+                centrizedSet(y + 3, "No drives available", F, 0xffffff)
             end
         end)
         drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
-    end
+    end or computer.uptime
 
     elementsPrimary = {
         s = 1,
@@ -346,32 +365,33 @@ local function bootloader()
         {"Halt", computer.shutdown},
         {"Shell", function()
             clear()
-            _ = setmetatable({
+            env = setmetatable({
                 print = print,
                 proxy = proxy,
                 sleep = sleep
             }, {__index = _G})
 
             ::LOOP::
-            data = input("> ", 1, height, F, data)
+            data = input("> ", height, F, data, 0xffffff, env)
 
             if data then
                 print("> " .. data)
                 set(1, height, ">")
-                print(select(2, execute(data, "=shell", _)))
+                print(select(2, execute(data, "=shell", env)))
                 goto LOOP
             end
         end},
-        {"URL boot", function()
-            fill(1, y + 3, width, 3)
-            url = input("URL: ", F, y + 3, 1)
+        proxy"net" and {"Netboot", function()
+            clear()
+            centrizedSet(height / 2 - 1, "Internet boot", F, 0xffffff)
+            url = input("URL: ", height / 2 + 1, 1, F, 0x8cb9c5)
 
             if url and #url > 0 then
                 local handle, data, chunk = proxy"net".request(url, F, F, {["user-agent"]="Cyan"}), ""
 
                 if handle then
-                    status"Downloading..."
-                    ::LOOP::
+                    status("Downloading script...", "Internet boot")
+                    ::LOOP::    
                     chunk = handle.read()
 
                     if chunk then
@@ -379,9 +399,10 @@ local function bootloader()
                         goto LOOP
                     end
 
-                    status(select(2, execute(data, "=URL boot", setmetatable({}, {__index = _G}), 1)) or "is empty", "URL boot", math.huge, 0)
+                    data = select(2, execute(data, "=stdin", setmetatable({}, {__index = _G}), 1, pcall)) or ""
+                    status(data, "Internet boot", #data == 0 and 0 or math.huge)
                 else
-                    status("Invalid URL", "Internet boot", math.huge, 0)
+                    status("Invalid URL", "Internet boot", math.huge)
                 end
             end
         end}
@@ -389,47 +410,50 @@ local function bootloader()
 
     correction = #elementsPrimary + 1
     redraw = F
-    gpuCheck()
     updateCandidates()
     selectedElements = #bootCandidates > 0 and elementsBootables or elementsPrimary
-    draw()
 
     ::LOOP::
+        draw()
         signalType, _, _, code = pullSignal()
+        debug_print(signalType)
 
         if signalType == "F" then
             computer.shutdown()
-        elseif signalType:match"mp" or redraw then
-            goto UPDATE
-        elseif signalType:match"do" then -- if you read this message please help they they forced me to do this
-            selectedElements = 
-            (code == 200 or code == 208) and (
-                #bootCandidates > 0 and ( -- Up
-                    selectedElements.p and elementsBootables or elementsPrimary
+        else
+            if signalType:match"do" then -- if you read this message please help they they forced me to do this
+                selectedElements = 
+                (code == 200 or code == 208) and (
+                    #bootCandidates > 0 and ( -- Up
+                        selectedElements.p and elementsBootables or elementsPrimary
+                    ) or selectedElements
                 ) or selectedElements
-            ) or selectedElements
 
-            selectedElements.s = 
-            code == 203 and ( -- Left
-                selectedElements.s == 1 and #selectedElements or selectedElements.s - 1
-            ) or code == 205 and (
-                selectedElements.s == #selectedElements and 1 or selectedElements.s + 1 -- Right
-            ) or selectedElements.s
-                
-            if code == 28 then -- Enter
-                selectedElements[selectedElements.s][2]()
+                selectedElements.s = 
+                code == 203 and ( -- Left
+                    selectedElements.s == 1 and #selectedElements or selectedElements.s - 1
+                ) or code == 205 and (
+                    selectedElements.s == #selectedElements and 1 or selectedElements.s + 1 -- Right
+                ) or selectedElements.s
+                    
+                if code == 28 then -- Enter
+                    selectedElements[selectedElements.s][2]()
+                end
             end
 
-            draw()
+            if signalType:match"mp" or redraw then
+                goto UPDATE
+            end
         end
     goto LOOP
 end
 
 computer.getBootAddress = proxy"pro".getData
 computer.setBootAddress = proxy"pro".setData
+currentBootAddress = computer.getBootAddress()
 updateCandidates()
-status("Hold ALT to stay in bootloader", F, math.huge, 56, bootloader, F)
+status("Hold ALT to stay in bootloader", F, 1, 56, bootloader, F)
 for i = 1, #bootCandidates do
     bootCandidates[i].b()
 end
-status("No drives available", F, 0, F, bootloader, F, 1)
+status("No drives available", F, F, F, bootloader, 1, 1)
