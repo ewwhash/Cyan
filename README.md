@@ -4,15 +4,11 @@
 For **OpenOS**, just run this command:
 
 ```
-pastebin run irfixAqG
-```
-Or if you have a problem with accessing pastebin.com use this:
-```
-wget -fq https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua; installer.lua
+wget https://github.com/BrightYC/Cyan/blob/master/stuff/cyan.bin?raw=true && flash -q cyan.bin "Cyan BIOS"
 ```
 
 For **MineOS**, you need to find app with name `Cyan BIOS`.
-## Lua 5.3
+## Shell
 Lua REPL with implemented functions:
 
 * os.sleep([timeout: number])
@@ -20,7 +16,7 @@ Lua REPL with implemented functions:
 * read(lastInput: string or nil): string or nil
 * print(...)
 
-## Internet boot
+## Netboot
 Executes file from specified URL
 
 ## Whitelist access
