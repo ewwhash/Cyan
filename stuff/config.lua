@@ -49,7 +49,6 @@ while true do
 end
 
 local readOnly = QA("Make EEPROM read only?")
-print(serialization.serialize(config))
 data = "cyan=" .. serialization.serialize(config) .. data
 print("Flashing...")
 local success, reason = eeprom.set(data)
