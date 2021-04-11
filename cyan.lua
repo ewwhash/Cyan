@@ -441,7 +441,7 @@ end
 COMPUTER.getBootAddress = proxy"pro".getData
 COMPUTER.setBootAddress = proxy"pro".setData
 currentBootAddress = COMPUTER.getBootAddress()
-userChecked = not cyan[1] and 1
+userChecked = (not cyan or not cyan[2] ) and 1
 updateCandidates()
 rebindGPU()
 status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)

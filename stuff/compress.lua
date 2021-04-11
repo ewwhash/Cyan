@@ -147,10 +147,5 @@ data = file:read("*a")
 file:close()
 
 file = io.open("cyan.bin", "w")
-file:write(
-    "cyan={{n=0}}", lzss.getSXF(
-        lzss.compress(data), 
-        true
-    )
-)
+file:write(lzss.getSXF(lzss.compress(data), true))
 file:close()
