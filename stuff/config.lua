@@ -2,7 +2,7 @@ local component = require("component")
 local serialization = require("serialization")
 local unicode = require("unicode")
 local eeprom = component.eeprom
-local data = eeprom.get()
+local data = eeprom.get():match("(computer.setArchitecture.+)")
 local config = {{}}
 
 local function read()
