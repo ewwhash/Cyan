@@ -1,52 +1,52 @@
 local GUI = require("GUI")
+local internet = require("Internet")
 local system = require("System")
-local component = require("Component")
 local filesystem = require("Filesystem")
+local workspace = system.getWorkspace()
 local eeprom = component.eeprom
 
-if not component.isAvailable("internet") then
-    GUI.alert("Please insert an internet card")
-    return
+local localizations = {
+    ["English"] = {
+        flash = "Flash",
+        reboot = "Reboot",
+        downloading = "Downloading...",
+        flashing = "Flashing...",
+        done = "Done!",
+    },
+    ["Russian"] = {
+        flash = "Прошить",
+        reboot = "Перезагрузка",
+        downloading = "Загрузка...",
+        flashing = "Прошивка...",
+        done = "Готово!"
+    }
+}
+
+local localization = localizations[system.getUserSettings().localizationLanguage] or localizations["English"]
+
+local container = GUI.addBackgroundContainer(workspace, true, true, "Cyan BIOS")
+local flash = container.layout:addChild(GUI.roundedButton(1, 1, unicode.len(localization.flash) + 8, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.flash)) 
+
+flash.onTouch = function()
+    flash:remove()
+    local downloading = container.layout:addChild(GUI.text(1, 1, 0x878787, localization.downloading))
+    workspace:draw()
+    local data, reason = internet.request("https://github.com/BrightYC/Cyan/blob/master/stuff/cyan.bin?raw=true")
+
+    if data then
+        downloading:remove()
+        local flashing = container.layout:addChild(GUI.text(1, 1, 0x878787, localization.downloading))
+        workspace:draw()
+        eeprom.set(data)
+        eeprom.setLabel("Cyan BIOS")
+        flashing:remove()
+        container.layout:addChild(GUI.text(1, 1, 0x878787, localization.done))
+        container.layout:addChild(GUI.roundedButton(1, 1, unicode.len(localization.reboot) + 8, 1, 0xFFFFFF, 0x000000, 0x878787, 0xFFFFFF, localization.reboot)).onTouch = function()
+            computer.shutdown(true)
+        end
+        workspace:draw()
+    else
+        GUI.alert(reason)
+        container:remove()
+    end
 end
-
---------------------------------------------------------------------------------
-
-local workspace = system.getWorkspace()
-local localization = system.getLocalization(filesystem.path(system.getCurrentScript()) .. "Localizations/")
-
--- Add a new window to MineOS workspace
-local workspace, window, menu = system.addWindow(GUI.filledWindow(1, 1, 60, 20, 0xE1E1E1))
-
--- Add single cell layout to window
-local layout = window:addChild(GUI.layout(1, 1, window.width, window.height, 1, 1))
-
--- Add nice gray text object to layout
-layout:addChild(GUI.text(1, 1, 0x4B4B4B, "Hello, " .. system.getUser()))
-
--- Customize MineOS menu for this application by your will
-local contextMenu = menu:addContextMenuItem("File")
-contextMenu:addItem("New")
-contextMenu:addSeparator()
-contextMenu:addItem("Open")
-contextMenu:addItem("Save", true)
-contextMenu:addItem("Save as")
-contextMenu:addSeparator()
-contextMenu:addItem("Close").onTouch = function()
-	window:remove()
-end
-
--- You can also add items without context menu
-menu:addItem("Example item").onTouch = function()
-	GUI.alert("It works!")
-end
-
--- Create callback function with resizing rules when window changes its' size
-window.onResize = function(newWidth, newHeight)
-  window.backgroundPanel.width, window.backgroundPanel.height = newWidth, newHeight
-  layout.width, layout.height = newWidth, newHeight
-end
-
----------------------------------------------------------------------------------
-
--- Draw changes on screen after customizing your window
-workspace:draw()

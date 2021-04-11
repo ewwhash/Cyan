@@ -148,7 +148,7 @@ file:close()
 
 file = io.open("cyan.bin", "w")
 file:write(
-    lzss.getSXF(
+    "cyan={{n=0}}", lzss.getSXF(
         lzss.compress(data), 
         true
     )

@@ -3,7 +3,8 @@
         "component",
         "computer",
         "F",
-        "unicode"
+        "unicode",
+        "cyan"
     ],
     "Lua.diagnostics.disable": [
         "unbalanced-assignments"

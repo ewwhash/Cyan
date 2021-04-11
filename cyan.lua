@@ -1,10 +1,10 @@
-local COMPONENT, COMPUTER, UNICODE, bootFiles, bootCandidates, keys, users, requireUserInput, userChecked, currentBootAddress, width, height, gpu, redraw, lines, elementsBootables = component, computer, unicode, {"/init.lua", "/OS.lua"}, {}, {}, {n = 0}, F
+local COMPONENT, COMPUTER, UNICODE, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = component, computer, unicode, {"/init.lua", "/OS.lua"}, {}, {}
 
 local function pullSignal(timeout)
     local signal = {COMPUTER.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if #signal > 0 and users.n > 0 and (signal[1]:match("ey") and not users[signal[5]] or signal[1]:match("cl") and not users[signal[4]]) then
+    if cyan and cyan[1].n > 0 and (signal[1]:match("ey") and not cyan[1][signal[5]] or signal[1]:match("cl") and not cyan[1][signal[4]]) then
         return ""
     end
 
@@ -16,7 +16,7 @@ local function pullSignal(timeout)
 
     return table.unpack(signal)
 end
-
+    
 local function execute(code, stdin, env, palette, call)
     call = call or xpcall
     local chunk, err = load("return " .. code, stdin, F, env)
@@ -27,13 +27,13 @@ local function execute(code, stdin, env, palette, call)
 
     if chunk then
         env = COMPONENT.invoke
-        COMPONENT.invoke = palette and gpu and gpu.address and function(address, method, ...)
+        COMPONENT.invoke = palette and function(address, method, ...)
             if gpu and address == gpu.address and method == "set" then
                 gpu.setPaletteColor(9, 0x969696)
                 gpu.setPaletteColor(11, 0xb4b4b4)
+                COMPONENT.invoke = env
             end
     
-            COMPONENT.invoke = env
             return env(address, method, ...)
         end or env
 
@@ -92,25 +92,34 @@ local function centrizedSet(y, text, background, foreground)
     set(centrize(UNICODE.len(text)), y, text, background, foreground)
 end
 
-local function checkGPU()
-    gpu = proxy"gp"
+local function rebindGPU()
+    gpu, screen = proxy"gp", proxy"sc"
 
-    if gpu and gpu.bind((component.list"sc"())) then
+    if gpu and screen then
+        if gpu.getScreen() ~= screen.address then
+            gpu.bind((screen.address))
+        end
+
+        local aspectWidth, aspectHeight, proportion = screen.getAspectRatio()
+        width, height = gpu.maxResolution()
+
+        proportion = 2*(16*aspectWidth-4.5)/(16*aspectHeight-4.5)
+        if proportion > width / height then
+            height = math.floor(width / proportion)
+        else
+            width = math.floor(height * proportion)
+        end
+        gpu.setResolution(width, height)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
-        width, height = gpu.maxResolution()
-        clear()
-        return 1
     end
-
-    width, height = 0, 0
 end
 
-local function status(text, title, wait, breakCode, onBreak, err, forceBreak)
-    if checkGPU() then
+local function status(text, title, wait, breakCode, onBreak)
+    if gpu and screen then
+        clear()
         split(text)
         local y = math.ceil(height / 2 - #lines / 2)
-        y = forceBreak and onBreak() or y
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xffffff)
@@ -120,10 +129,7 @@ local function status(text, title, wait, breakCode, onBreak, err, forceBreak)
             centrizedSet(y, lines[i])
             y = y + 1
         end
-
         sleep(wait or 0, breakCode or 0, onBreak)
-    elseif err then
-        error(text)
     end
 end
 
@@ -210,7 +216,8 @@ local function addCandidate(address)
 
         bootCandidates[i] = {
             r = proxy,
-            p = function(booting, y)
+            p = function(booting, y, CLEAR)
+                booting = CLEAR and clear() or booting
                 centrizedSet(y, bootFile and ("Boot%s %s from %s (%s)"):format(
                     booting and "ing" or "",
                     bootFile,
@@ -236,17 +243,14 @@ local function addCandidate(address)
                 end
         
                 proxy.close(handle)
-                status("Hold any button to boot", F, math.huge, 0, function()
-                    if gpu then
-                        clear()
-                        bootCandidates[i].p(1, height / 2)
-                    end
-                    if currentBootAddress ~= address then
-                        COMPUTER.setBootAddress(address)
-                    end
-                    success, err = execute(data, "=" .. bootFile, F, 1)
-                    status(err, [[¯\_(ツ)_/¯]], math.huge, 0, COMPUTER.shutdown, 1  )
-                end, F, userChecked or not requireUserInput)
+                status("Hold any button to boot", F, userChecked and 0 or math.huge)
+                chunk = gpu and screen and bootCandidates[i].p(1, height / 2, 1)
+                chunk = currentBootAddress ~= address and COMPUTER.setBootAddress(address)
+                success, err = execute(data, "=" .. bootFile, F, 1)
+                success = success and COMPUTER.shutdown()
+                rebindGPU()
+                status(err, "¯\\_(ツ)_/¯", math.huge, 0, COMPUTER.shutdown)
+                error(err)
             end
         end or COMPUTER.uptime
 
@@ -298,50 +302,52 @@ local function bootloader()
         end
     end
 
-    draw = checkGPU() and function()
-        y = height / 2 - (#bootCandidates > 0 and -1 or 1)
-    
-        clear()
-        drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
-            if #bootCandidates > 0 then
-                drive = bootCandidates[elementsBootables.s].r
-    
-                bootCandidates[elementsBootables.s].p(F, y + 3)
-    
-                centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                    math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
-                    drive.isReadOnly() and "Read only" or "Read & Write",
-                    drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
-                )
-    
-                for i = correction, #elementsPrimary do
-                    elementsPrimary[i] = F
-                end
-    
-                if not drive.isReadOnly() then
-                    elementsPrimary[correction] = {"Rename", function()
-                        clear()
-                        centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
-                        newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
-            
-                        if newLabel and #newLabel > 0 then
-                            drive.setLabel(newLabel)
+    function draw()
+        if gpu and screen then 
+            y = height / 2 - (#bootCandidates > 0 and -1 or 1)
+        
+            clear()
+            drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
+                if #bootCandidates > 0 then
+                    drive = bootCandidates[elementsBootables.s].r
+        
+                    bootCandidates[elementsBootables.s].p(F, y + 3)
+        
+                    centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
+                        math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                        drive.isReadOnly() and "Read only" or "Read & Write",
+                        drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
+                    )
+        
+                    for i = correction, #elementsPrimary do
+                        elementsPrimary[i] = F
+                    end
+        
+                    if not drive.isReadOnly() then
+                        elementsPrimary[correction] = {"Rename", function()
+                            clear()
+                            centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
+                            newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
+                
+                            if newLabel and #newLabel > 0 then
+                                drive.setLabel(newLabel)
+                                updateCandidates(elementsBootables.s)
+                            end
+                        end}
+        
+                        elementsPrimary[correction + 1] = {"Format", function()
+                            drive.remove("/")
+                            drive.setLabel(F)
                             updateCandidates(elementsBootables.s)
-                        end
-                    end}
-    
-                    elementsPrimary[correction + 1] = {"Format", function()
-                        drive.remove("/")
-                        drive.setLabel(F)
-                        updateCandidates(elementsBootables.s)
-                    end}
+                        end}
+                    end
+                else
+                    centrizedSet(y + 3, "No drives available", F, 0xffffff)
                 end
-            else
-                centrizedSet(y + 3, "No drives available", F, 0xffffff)
-            end
-        end)
-        drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
-    end or COMPUTER.uptime
+            end)
+            drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
+        end
+    end
 
     elementsPrimary = {
         s = 1,
@@ -425,6 +431,7 @@ local function bootloader()
             end
 
             if signalType:match"mp" or redraw then
+                pcall(rebindGPU)
                 goto UPDATE
             end
         end
@@ -434,9 +441,11 @@ end
 COMPUTER.getBootAddress = proxy"pro".getData
 COMPUTER.setBootAddress = proxy"pro".setData
 currentBootAddress = COMPUTER.getBootAddress()
+userChecked = not cyan[1] and 1
 updateCandidates()
-status("Hold ALT to stay in bootloader", F, 1, 56, bootloader, F)
+rebindGPU()
+status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
 for i = 1, #bootCandidates do
     bootCandidates[i].b()
 end
-status("No drives available", F, F, F, bootloader, 1, 1)
+gpu = gpu and screen and bootloader() or error("No drives available")
