@@ -4,7 +4,7 @@
 For **OpenOS**, just run this command:
 
 ```
-wget https://github.com/BrightYC/Cyan/blob/master/stuff/cyan.bin?raw=true && flash -q cyan.bin "Cyan BIOS"
+wget -f https://github.com/BrightYC/Cyan/blob/master/stuff/cyan.bin?raw=true && flash -q cyan.bin "Cyan BIOS"
 ```
 
 For **MineOS**, you need to find app with name `Cyan BIOS`.
