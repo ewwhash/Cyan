@@ -23,11 +23,11 @@ Executes file from specified URL
 Prevents booting, for example, if computer stays in some private places.
 To boot, it needs some input from user that defined in whitelist (It can be edited manually in file cyan.bin).
 
-Example of the whitelist:
-cyan={{'hohserg',"fingercomp",'Saghetti',n=3}}
-If we need asking prompt:
-cyan={{'hohserg','fingercomp'},1}
-(If the second index of the table is true - then Cyan will be asking each time when loading OS).
+Example of the whitelist:  
+cyan={{'hohserg',"fingercomp",'Saghetti',n=3}}  
+If we need asking prompt:  
+cyan={{'hohserg','fingercomp'},1}  
+(If the second index of the table is true - then Cyan will be asking each time when loading OS).  
 
 ## How to build own Cyan BIOS?
 Just run compress.lua (before that minify the code, for example here: https://mothereff.in/lua-minifier) and make sure that minified.lua file stored in the same folder that compress.lua
