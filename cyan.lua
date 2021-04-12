@@ -109,6 +109,7 @@ local function rebindGPU()
         else
             width = math.floor(height * proportion)
         end
+        gpu.set(1, 1, "")
         gpu.setResolution(width, height)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -216,9 +217,10 @@ local function addCandidate(address)
 
         bootCandidates[i] = {
             r = proxy,
-            p = function(booting, y, CLEAR)
-                booting = CLEAR and clear() or booting
-                centrizedSet(y, bootFile and ("Boot%s %s from %s (%s)"):format(
+            p = function(booting, y)
+                booting = booting and clear() or booting
+
+                centrizedSet(y or height / 2, bootFile and ("Boot%s %s from %s (%s)"):format(
                     booting and "ing" or "",
                     bootFile,
                     cutText(proxy.getLabel() or "N/A", 6),
@@ -227,6 +229,8 @@ local function addCandidate(address)
                     proxy.getLabel() or "N/A",
                     cutText(address, booting and width > 80 and 36 or 6)
                 ), F, not booting and 0xffffff)
+
+                booting = booting and not userChecked and status"Hold ENTER to boot" and sleep(math.huge, 28)
             end
         }
 
@@ -243,8 +247,7 @@ local function addCandidate(address)
                 end
         
                 proxy.close(handle)
-                status("Hold any button to boot", F, userChecked and 0 or math.huge)
-                chunk = gpu and screen and bootCandidates[i].p(1, height / 2, 1)
+                pcall(bootCandidates[i].p, 1)
                 chunk = currentBootAddress ~= address and COMPUTER.setBootAddress(address)
                 success, err = execute(data, "=" .. bootFile, F, 1)
                 success = success and COMPUTER.shutdown()
@@ -303,50 +306,48 @@ local function bootloader()
     end
 
     function draw()
-        if gpu and screen then 
-            y = height / 2 - (#bootCandidates > 0 and -1 or 1)
-        
-            clear()
-            drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
-                if #bootCandidates > 0 then
-                    drive = bootCandidates[elementsBootables.s].r
-        
-                    bootCandidates[elementsBootables.s].p(F, y + 3)
-        
-                    centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                        math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
-                        drive.isReadOnly() and "Read only" or "Read & Write",
-                        drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
-                    )
-        
-                    for i = correction, #elementsPrimary do
-                        elementsPrimary[i] = F
-                    end
-        
-                    if not drive.isReadOnly() then
-                        elementsPrimary[correction] = {"Rename", function()
-                            clear()
-                            centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
-                            newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
-                
-                            if newLabel and #newLabel > 0 then
-                                drive.setLabel(newLabel)
-                                updateCandidates(elementsBootables.s)
-                            end
-                        end}
-        
-                        elementsPrimary[correction + 1] = {"Format", function()
-                            drive.remove("/")
-                            drive.setLabel(F)
-                            updateCandidates(elementsBootables.s)
-                        end}
-                    end
-                else
-                    centrizedSet(y + 3, "No drives available", F, 0xffffff)
+        y = height / 2 - (#bootCandidates > 0 and -1 or 1)
+    
+        clear()
+        drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
+            if #bootCandidates > 0 then
+                drive = bootCandidates[elementsBootables.s].r
+    
+                bootCandidates[elementsBootables.s].p(F, y + 3)
+    
+                centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
+                    math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                    drive.isReadOnly() and "Read only" or "Read & Write",
+                    drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
+                )
+    
+                for i = correction, #elementsPrimary do
+                    elementsPrimary[i] = F
                 end
-            end)
-            drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
-        end
+    
+                if not drive.isReadOnly() then
+                    elementsPrimary[correction] = {"Rename", function()
+                        clear()
+                        centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
+                        newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
+            
+                        if newLabel and #newLabel > 0 then
+                            drive.setLabel(newLabel)
+                            updateCandidates(elementsBootables.s)
+                        end
+                    end}
+    
+                    elementsPrimary[correction + 1] = {"Format", function()
+                        drive.remove("/")
+                        drive.setLabel(F)
+                        updateCandidates(elementsBootables.s)
+                    end}
+                end
+            else
+                centrizedSet(y + 3, "No drives available", F, 0xffffff)
+            end
+        end)
+        drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
     end
 
     elementsPrimary = {
@@ -366,6 +367,7 @@ local function bootloader()
 
             if data then
                 print("> " .. data)
+                fill(1, height, width, 1)
                 set(1, height, ">")
                 print(select(2, execute(data, "=shell", env)))
                 goto LOOP
@@ -404,7 +406,7 @@ local function bootloader()
     selectedElements = #bootCandidates > 0 and elementsBootables or elementsPrimary
 
     ::LOOP::
-        draw()
+        pcall(draw)
         signalType, _, _, code = pullSignal()
         
         if signalType == "F" then
@@ -426,7 +428,7 @@ local function bootloader()
                 ) or selectedElements.s
                     
                 if code == 28 then -- Enter
-                    selectedElements[selectedElements.s][2]()
+                    pcall(selectedElements[selectedElements.s][2])
                 end
             end
 
@@ -441,7 +443,7 @@ end
 COMPUTER.getBootAddress = proxy"pro".getData
 COMPUTER.setBootAddress = proxy"pro".setData
 currentBootAddress = COMPUTER.getBootAddress()
-userChecked = (not cyan or not cyan[2] ) and 1
+userChecked = (not cyan or not cyan[2]) and 1
 updateCandidates()
 rebindGPU()
 status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
