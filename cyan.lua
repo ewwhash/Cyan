@@ -188,20 +188,6 @@ local function input(prefix, y, centrized, historyText, foreground, env)
     goto LOOP
 end
 
-local function print(...)
-    local text = table.pack(...)
-    for i = 1, text.n do
-        text[i] = tostring(text[i])
-    end
-    split(table.concat(text, "    "), 1)
-
-    for i = 1, #lines do
-        gpu.copy(1, 1, width, height - 1, 0, -1)
-        fill(1, height - 1, width, 1)
-        set(1, height - 1, lines[i])
-    end
-end
-
 local function addCandidate(address)
     local proxy, bootFile, i = COMPONENT.proxy(address)
 
@@ -277,7 +263,7 @@ end
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, _ =
+    local drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, _ =
     
     function(elements, y, spaces, borderHeight, drawSelected, onDraw)
         local elementsLineLength, x = 0
@@ -357,7 +343,29 @@ local function bootloader()
         {"Shell", function()
             clear()
             env = setmetatable({
-                print = print,
+                print = function(...)
+                    text = table.pack(...)
+                    for i = 1, text.n do
+                        if type(text[i]) == "table" then
+                            str = ''
+                
+                            for k, v in pairs(text[i]) do
+                                str = str .. tostring(k) .. "    " .. tostring(v) .. "\n"
+                            end
+                
+                            text[i] = str
+                        else
+                            text[i] = tostring(text[i])
+                        end
+                    end
+                    split(table.concat(text, "    "), 1)
+                
+                    for i = 1, #lines do
+                        gpu.copy(1, 1, width, height - 1, 0, -1)
+                        fill(1, height - 1, width, 1)
+                        set(1, height - 1, lines[i])
+                    end
+                end,
                 proxy = proxy,
                 sleep = function(timeout)
                     sleep(timeout, 32, error)
@@ -368,10 +376,10 @@ local function bootloader()
             data = input("> ", height, F, data, 0xffffff, env)
 
             if data then
-                print("> " .. data)
+                env.print("> " .. data)
                 fill(1, height, width, 1)
                 set(1, height, ">")
-                print(select(2, execute(data, "=shell", env)))
+                env.print(select(2, execute(data, "=shell", env)))
                 goto LOOP
             end
         end},
