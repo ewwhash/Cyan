@@ -1,21 +1,6 @@
+print(coroutine)
+error()
 local COMPONENT, COMPUTER, UNICODE, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = component, computer, unicode, {"/init.lua", "/OS.lua"}, {}, {}
-
-local function pullSignal(timeout)
-    local signal = {COMPUTER.pullSignal(timeout)}
-    signal[1] = signal[1] or ""
-
-    if cyan and cyan[1].n > 0 and (signal[1]:match("ey") and not cyan[1][signal[5]] or signal[1]:match("cl") and not cyan[1][signal[4]]) then
-        return ""
-    end
-
-    keys[signal[4] or ""] = signal[1]:match"do" and 1
-
-    if keys[29] and (keys[46] or keys[32]) and signal[1]:match"do" then
-        return "F"
-    end
-
-    return table.unpack(signal)
-end
     
 local function execute(code, stdin, env, palette, call)
     call = call or xpcall
@@ -52,19 +37,6 @@ local function split(text, tabulate)
 
     for line in text:gmatch"[^\r\n]+" do
         lines[#lines + 1] = line:gsub("\t", tabulate and "    " or "")
-    end
-end
-
-local function sleep(timeout, breakCode, onBreak)
-    local deadline, signalType, code, _ = COMPUTER.uptime() + (timeout or math.huge)
-
-    ::LOOP::
-    signalType, _, _, code = pullSignal(deadline - COMPUTER.uptime())
-
-    if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
-        return 1, onBreak and onBreak()
-    elseif COMPUTER.uptime() < deadline then
-        goto LOOP
     end
 end
 
@@ -113,6 +85,36 @@ local function rebindGPU()
         gpu.setResolution(width, height)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
+    end
+end
+
+local function pullSignal(timeout)
+    local signal = {COMPUTER.pullSignal(timeout)}
+    signal[1] = signal[1] or ""
+
+    if cyan and cyan[1].n > 0 and (signal[1]:match("ey") and not cyan[1][signal[5]] or signal[1]:match("cl") and not cyan[1][signal[4]]) then
+        return ""
+    end
+
+    keys[signal[4] or ""] = signal[1]:match"do" and 1
+
+    if keys[29] and (keys[46] or keys[32]) and signal[1]:match"do" then
+        return "F"
+    end
+
+    return table.unpack(signal)
+end
+
+local function sleep(timeout, breakCode, onBreak)
+    local deadline, signalType, code, _ = COMPUTER.uptime() + (timeout or math.huge)
+
+    ::LOOP::
+    signalType, _, _, code = pullSignal(deadline - COMPUTER.uptime())
+
+    if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
+        return 1, onBreak and onBreak()
+    elseif COMPUTER.uptime() < deadline then
+        goto LOOP
     end
 end
 
@@ -359,7 +361,7 @@ local function bootloader()
             env = setmetatable({
                 print = print,
                 proxy = proxy,
-                sleep = sleep
+                function(timeout) sleep(timeout, 0) end,
             }, {__index = _G})
 
             ::LOOP::
