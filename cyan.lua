@@ -360,7 +360,7 @@ local function bootloader()
                 print = print,
                 proxy = proxy,
                 sleep = function(timeout)
-                    sleep(timeout, 0)
+                    sleep(timeout, 32, error)
                 end
             }, {__index = _G})
 
