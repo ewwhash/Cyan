@@ -359,7 +359,9 @@ local function bootloader()
             env = setmetatable({
                 print = print,
                 proxy = proxy,
-                sleep = sleep
+                sleep = function(timeout)
+                    sleep(timeout, 0)
+                end
             }, {__index = _G})
 
             ::LOOP::
