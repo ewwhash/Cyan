@@ -402,6 +402,7 @@ local function bootloader()
                     end
 
                     data = select(2, execute(data, "=stdin", F, 1, pcall)) or ""
+                    rebindGPU()
                     status(data, "Internet boot", #data == 0 and 0 or math.huge)
                 else
                     status("Invalid URL", "Internet boot", math.huge)
