@@ -54,7 +54,7 @@ print("Flashing...")
 local success, reason = eeprom.set(data)
 
 if reason == "storage is readonly" then
-    io.stderr:write("EEPROM is read only. Please insert an not read-only EEPROM.")
+    io.stderr:write("EEPROM is read only. Please insert a not read-only EEPROM.")
 else
     if readOnly then
         eeprom.makeReadonly(eeprom.getChecksum())
