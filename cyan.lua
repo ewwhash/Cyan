@@ -451,8 +451,8 @@ local function bootloader()
     goto LOOP
 end
 
-COMPUTER.getBootAddress = proxy"pro".getData
-COMPUTER.setBootAddress = proxy"pro".setData
+COMPUTER.getBootAddress = function(...) return proxy"pro".getData(...) end
+COMPUTER.setBootAddress = function(...) proxy"pro".setData(...) end
 currentBootAddress = COMPUTER.getBootAddress()
 userChecked = (not cyan or not cyan[2]) and 1
 updateCandidates()
