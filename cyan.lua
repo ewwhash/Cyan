@@ -1,4 +1,4 @@
-local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, bootingEntry = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
+local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, width, height, gpu, screen, redraw, lines = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
 
 local function pullSignal(timeout)
     local signal = {COMPUTER.pullSignal(timeout)}
@@ -189,7 +189,7 @@ local function input(prefix, y, centrized, historyText, foreground, env)
 end
 
 local function addCandidate(address)
-    local proxy, allBootFiles, bootFile, i = COMPONENT.proxy(address), {s = 1}
+    local proxy, allBootFiles, bootFile, i = COMPONENT.proxy(address), {s = 1, z = 1}
 
     if proxy and address ~= COMPUTER.tmpAddress() then
         i = #bootCandidates + 1
@@ -233,7 +233,7 @@ local function addCandidate(address)
     
             proxy.close(handle)
             pcall(bootCandidates[i].p, 1)
-            chunk = currentBootAddress ~= address and COMPUTER.setBootAddress(address)
+            chunk = COMPUTER.getBootAddress() ~= address and COMPUTER.setBootAddress(address)
             success, err = execute(data, "=" .. bootFile, F, 1)
             success = success and COMPUTER.shutdown()
             rebindGPU()
@@ -258,17 +258,17 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(currentBootAddress)
+    addCandidate(COMPUTER.getBootAddress())
 
     for address in next, COMPONENT.list"file" do
-        addCandidate(address ~= currentBootAddress and address or "")
+        addCandidate(address ~= COMPUTER.getBootAddress() and address or "")
     end
 end
 
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local elementsBootables, drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, _ = {s = 1},
+    local elementsBootables, drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, bootingEntry, _ = {s = 1},
     
     function(elements, y, spaces, borderHeight, drawSelected, onDraw)
         local elementsLineLength, x = 0
@@ -299,7 +299,7 @@ local function bootloader()
     function draw()
         clear()
 
-        if bootingEntry then
+        if selectedElements.z then
             centrizedSet(height / 2 - 2, "Select boot entry", F, 0xffffff)
             drawElements(selectedElements, height / 2 + 2, 6, 3, 1)
         else
@@ -452,9 +452,8 @@ local function bootloader()
             COMPUTER.shutdown()
         else
             if signalType:match"do" then -- if you read this message please help they they forced me to do this
-                selectedElements = 
-                not bootingEntry and (code == 200 or code == 208) and (
-                    #bootCandidates > 0 and ( -- Up
+                selectedElements = (code == 200 or code == 208) and (
+                    selectedElements.z and elementsBootables or #bootCandidates > 0 and ( -- Up
                         selectedElements.p and elementsBootables or elementsPrimary
                     ) or selectedElements
                 ) or selectedElements
@@ -479,9 +478,8 @@ local function bootloader()
     goto LOOP
 end
 
-COMPUTER.getBootAddress = function(...) return proxy"pro".getData(...) end
-COMPUTER.setBootAddress = function(...) proxy"pro".setData(...) end
-currentBootAddress = COMPUTER.getBootAddress()
+COMPUTER.getBootAddress = function() return proxy"pro" and proxy"pro".getData() end
+COMPUTER.setBootAddress = function(d) return proxy"pro" and proxy"pro".setData(d) end
 updateCandidates()
 rebindGPU()
 status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
