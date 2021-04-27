@@ -435,7 +435,7 @@ local function bootloader()
             function()
                 bootingEntry = i
                 selectedElements = bootCandidates[bootingEntry].l
-                if #selectedElements == 1 then
+                if #selectedElements > 0 and selectedElements == 1 then
                     selectedElements[1][2]()
                 end
             end
