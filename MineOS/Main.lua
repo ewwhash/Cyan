@@ -94,7 +94,6 @@ container:addChild(GUI.roundedButton(18, 15, 15, 1, 0xE1E1E1, 0x696969, 0x878787
             config = config .. users:getItem(i).text .. '|'
         end
         config = config .. (userInput.state and "$" or "") .. '"'
-        GUI.alert(config)
     end
 
     if #config > 64 then
