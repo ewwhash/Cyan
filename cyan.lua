@@ -433,9 +433,9 @@ local function bootloader()
         elementsBootables[i] = {
             cutText(bootCandidates[i].d.getLabel() or "N/A", 6),
             function()
-                bootingEntry = i
-                selectedElements = bootCandidates[bootingEntry].l
                 if #selectedElements > 0 and selectedElements == 1 then
+                    bootingEntry = i
+                    selectedElements = bootCandidates[bootingEntry].l
                     selectedElements[1][2]()
                 end
             end
