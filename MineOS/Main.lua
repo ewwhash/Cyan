@@ -16,7 +16,9 @@ local localizations = {
         maxLengthExited = "The maximum number of users has been exceeded",
         readonly = "EEPROM readonly:",
         userInput = "Wait for input when booting:",
-        options = "Options"
+        options = "Options",
+        flashFailed = "Flash failed, reason:",
+        downloadFiled = "Download failed, reason:"
     },
     ["Russian"] = {
         flash = "Прошить",
@@ -30,7 +32,9 @@ local localizations = {
         maxLengthExited = "Превышено максимальное количество пользователей",
         readonly = "EEPROM только для чтения:",
         userInput = "Ждать нажатия для загрузки:",
-        options = "Опции"
+        options = "Опции",
+        flashFailed = "Прошивка неудачна, причина:",
+        downloadFiled = "Не удалось загрузить файл, приина:"
     }
 }
 
@@ -133,12 +137,12 @@ container:addChild(GUI.roundedButton(18, 15, 15, 1, 0xE1E1E1, 0x696969, 0x878787
                     computer.shutdown(true)
                 end
             else
-                GUI.alert("Flash failed, reason: " .. (reasonFromEeprom and reasonFromEeprom or reason or "unknown"))
+                GUI.alert(localization.flashFailed .. " " .. (reasonFromEeprom and reasonFromEeprom or reason or "unknown"))
                 flashContainer:remove()
                 container.hidden = false
             end
         else
-            GUI.alert("Download failed, reason: " .. tostring(reason))
+            GUI.alert(localization.downloadFiled .. " " .. tostring(reason))
             flashContainer:remove()
             container.hidden = false
         end
