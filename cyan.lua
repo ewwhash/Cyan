@@ -221,26 +221,24 @@ local function addCandidate(address)
         }
 
         bootCandidates[i].b = function()
-            if bootFile then
-                local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
+            local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
 
-                ::LOOP::
-                chunk = proxy.read(handle, MATH.huge)
-        
-                if chunk then
-                    data = data .. chunk
-                    goto LOOP
-                end
-        
-                proxy.close(handle)
-                pcall(bootCandidates[i].p, 1)
-                chunk = currentBootAddress ~= address and COMPUTER.setBootAddress(address)
-                success, err = execute(data, "=" .. bootFile, F, 1)
-                success = success and COMPUTER.shutdown()
-                rebindGPU()
-                status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
-                error(err)
+            ::LOOP::
+            chunk = proxy.read(handle, MATH.huge)
+    
+            if chunk then
+                data = data .. chunk
+                goto LOOP
             end
+    
+            proxy.close(handle)
+            pcall(bootCandidates[i].p, 1)
+            chunk = currentBootAddress ~= address and COMPUTER.setBootAddress(address)
+            success, err = execute(data, "=" .. bootFile, F, 1)
+            success = success and COMPUTER.shutdown()
+            rebindGPU()
+            status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
+            error(err)
         end
 
         for j = 1, #bootFiles do
@@ -433,10 +431,13 @@ local function bootloader()
         elementsBootables[i] = {
             cutText(bootCandidates[i].d.getLabel() or "N/A", 6),
             function()
-                if #selectedElements > 0 and selectedElements == 1 then
+                if #bootCandidates[i].l > 0 then
                     bootingEntry = i
                     selectedElements = bootCandidates[bootingEntry].l
-                    selectedElements[1][2]()
+
+                    if #selectedElements == 1 then
+                        selectedElements[1][2]()
+                    end
                 end
             end
         }
