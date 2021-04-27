@@ -1,4 +1,4 @@
-local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
+local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, bootingEntry = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
 
 local function pullSignal(timeout)
     local signal = {COMPUTER.pullSignal(timeout)}
@@ -189,32 +189,32 @@ local function input(prefix, y, centrized, historyText, foreground, env)
 end
 
 local function addCandidate(address)
-    local proxy, bootFile, i = COMPONENT.proxy(address)
+    local proxy, allBootFiles, bootFile, i = COMPONENT.proxy(address), {s = 1}
 
     if proxy and address ~= COMPUTER.tmpAddress() then
         i = #bootCandidates + 1
 
-        for j = 1, #bootFiles do
-            if proxy.exists(bootFiles[j]) then
-                bootFile = bootFiles[j]
-                break
-            end
-        end
-
         bootCandidates[i] = {
             r = proxy,
+            l = allBootFiles,
+            d = proxy,
             p = function(booting, y)
                 booting = booting and clear() or booting
 
-                centrizedSet(y or height / 2, bootFile and ("Boot%s %s from %s (%s)"):format(
-                    booting and "ing" or "",
-                    bootFile,
-                    cutText(proxy.getLabel() or "N/A", 6),
-                    cutText(address, booting and width > 80 and 36 or 6)
-                ) or ("Boot from %s (%s) isn't available"):format(
-                    proxy.getLabel() or "N/A",
-                    cutText(address, booting and width > 80 and 36 or 6)
-                ), F, not booting and 0xffffff)
+                centrizedSet(y or height / 2,
+                    booting and ("Booting %s from %s (%s)"):format(
+                        bootFile,
+                        proxy.getLabel() or "N/A",
+                        cutText(address, width > 80 and 36 or 6)
+                    ) or bootFile and ("Boot%s %s (%s)"):format(
+                        (#allBootFiles == 1 and " " .. bootFile or "") .. " from",
+                        cutText(proxy.getLabel() or "N/A", 6),
+                        cutText(address, 6)
+                    ) or ("Boot from %s (%s) isn't available"):format(
+                        proxy.getLabel() or "N/A",
+                        cutText(address, 6)
+                    )
+                , F, not booting and 0xffffff)
 
                 booting = booting and not userChecked and cyan:match("$") and (status("Hold ENTER to boot") or sleep(F, 28))
             end
@@ -241,18 +241,25 @@ local function addCandidate(address)
                 status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
                 error(err)
             end
-        end or COMPUTER.uptime
+        end
 
-        elementsBootables[i] = {
-            cutText(proxy.getLabel() or "N/A", 6),
-            bootCandidates[i].b
-        }
+        for j = 1, #bootFiles do
+            if proxy.exists(bootFiles[j]) then
+                bootFile = bootFile or bootFiles[j]
+                allBootFiles[#allBootFiles + 1] = {
+                    bootFiles[j],
+                    function()
+                        bootFile = bootFiles[j]
+                        bootCandidates[i].b()
+                    end
+                }
+            end
+        end
     end
 end
 
-local function updateCandidates(selected)
+local function updateCandidates()
     bootCandidates = {}
-    elementsBootables = {s = selected or 1}
     addCandidate(currentBootAddress)
 
     for address in next, COMPONENT.list"file" do
@@ -263,7 +270,7 @@ end
 local function bootloader()
     userChecked = 1
     ::UPDATE::
-    local drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, _ =
+    local elementsBootables, drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, _ = {s = 1},
     
     function(elements, y, spaces, borderHeight, drawSelected, onDraw)
         local elementsLineLength, x = 0
@@ -292,48 +299,55 @@ local function bootloader()
     end
 
     function draw()
-        y = height / 2 - (#bootCandidates > 0 and -1 or 1)
-    
         clear()
-        drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
-            if #bootCandidates > 0 then
-                drive = bootCandidates[elementsBootables.s].r
-    
-                bootCandidates[elementsBootables.s].p(F, y + 3)
-    
-                centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                    MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
-                    drive.isReadOnly() and "Read only" or "Read & Write",
-                    drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
-                )
-    
-                for i = correction, #elementsPrimary do
-                    elementsPrimary[i] = F
+
+        if bootingEntry then
+            centrizedSet(height / 2 - 2, "Select boot entry", F, 0xffffff)
+            drawElements(selectedElements, height / 2 + 2, 6, 3, 1)
+        else
+            y = height / 2 - (#bootCandidates > 0 and -1 or 1)
+        
+            drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
+                if #bootCandidates > 0 then
+                    drive = bootCandidates[elementsBootables.s].r
+        
+                    bootCandidates[elementsBootables.s].p(F, y + 3)
+        
+                    centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
+                        MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                        drive.isReadOnly() and "Read only" or "Read & Write",
+                        drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
+                    )
+        
+                    for i = correction, #elementsPrimary do
+                        elementsPrimary[i] = F
+                    end
+        
+                    if not drive.isReadOnly() then
+                        elementsPrimary[correction] = {"Rename", function()
+                            clear()
+                            centrizedSet(height / 2 - 1, "Rename", F, 0xffffff)
+                            newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
+                
+                            if newLabel and #newLabel > 0 then
+                                drive.setLabel(newLabel)
+                                updateCandidates()
+                            end
+                        end}
+        
+                        elementsPrimary[correction + 1] = {"Format", function()
+                            drive.remove("/")
+                            drive.setLabel(F)
+                            updateCandidates()
+                        end}
+                    end
+                else
+                    centrizedSet(y + 3, "No drives available", F, 0xffffff)
                 end
-    
-                if not drive.isReadOnly() then
-                    elementsPrimary[correction] = {"Rename", function()
-                        clear()
-                        centrizedSet(height / 2 - 1, "Change label", F, 0xffffff)
-                        newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
-            
-                        if newLabel and #newLabel > 0 then
-                            drive.setLabel(newLabel)
-                            updateCandidates(elementsBootables.s)
-                        end
-                    end}
-    
-                    elementsPrimary[correction + 1] = {"Format", function()
-                        drive.remove("/")
-                        drive.setLabel(F)
-                        updateCandidates(elementsBootables.s)
-                    end}
-                end
-            else
-                centrizedSet(y + 3, "No drives available", F, 0xffffff)
-            end
-        end)
-        drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
+            end)
+
+            drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
+        end
     end
 
     elementsPrimary = {
@@ -385,14 +399,14 @@ local function bootloader()
         end},
         proxy"net" and {"Netboot", function()
             clear()
-            centrizedSet(height / 2 - 1, "Internet boot", F, 0xffffff)
+            centrizedSet(height / 2 - 1, "Netboot", F, 0xffffff)
             url = input("URL: ", height / 2 + 1, 1, F, 0x8cb9c5)
 
             if url and #url > 0 then
-                local handle, data, chunk = proxy"net".request(url, F, F, {["user-agent"]="Cyan"}), ""
+                local handle, data, chunk = proxy"net".request(url, F, F, {["user-agent"]="Netboot"}), ""
 
                 if handle then
-                    status("Downloading script...", "Internet boot")
+                    status("Downloading script...", "Netboot")
                     ::LOOP::    
                     chunk = handle.read()
 
@@ -403,9 +417,9 @@ local function bootloader()
 
                     data = select(2, execute(data, "=stdin", F, 1, pcall)) or ""
                     rebindGPU()
-                    status(data, "Internet boot", #data == 0 and 0 or MATH.huge)
+                    status(data, "Netboot", #data == 0 and 0 or MATH.huge)
                 else
-                    status("Invalid URL", "Internet boot", MATH.huge)
+                    status("Invalid URL", "Netboot", MATH.huge)
                 end
             end
         end}
@@ -413,7 +427,20 @@ local function bootloader()
 
     correction = #elementsPrimary + 1
     redraw = F
+    bootingEntry = F
     updateCandidates()
+    for i = 1, #bootCandidates do
+        elementsBootables[i] = {
+            cutText(bootCandidates[i].d.getLabel() or "N/A", 6),
+            function()
+                bootingEntry = i
+                selectedElements = bootCandidates[bootingEntry].l
+                if #selectedElements == 1 then
+                    selectedElements[1][2]()
+                end
+            end
+        }
+    end
     selectedElements = #bootCandidates > 0 and elementsBootables or elementsPrimary
 
     ::LOOP::
@@ -425,7 +452,7 @@ local function bootloader()
         else
             if signalType:match"do" then -- if you read this message please help they they forced me to do this
                 selectedElements = 
-                (code == 200 or code == 208) and (
+                not bootingEntry and (code == 200 or code == 208) and (
                     #bootCandidates > 0 and ( -- Up
                         selectedElements.p and elementsBootables or elementsPrimary
                     ) or selectedElements
