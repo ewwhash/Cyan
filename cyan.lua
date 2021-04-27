@@ -1,4 +1,4 @@
-local COMPONENT, COMPUTER, UNICODE, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = component, computer, unicode, {"/init.lua", "/OS.lua"}, {}, {}
+local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, currentBootAddress, width, height, gpu, screen, redraw, lines, elementsBootables = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
 
 local function pullSignal(timeout)
     local signal = {COMPUTER.pullSignal(timeout)}
@@ -56,7 +56,7 @@ local function split(text, tabulate)
 end
 
 local function sleep(timeout, breakCode, onBreak)
-    local deadline, signalType, code, _ = COMPUTER.uptime() + (timeout or math.huge)
+    local deadline, signalType, code, _ = COMPUTER.uptime() + (timeout or MATH.huge)
 
     ::LOOP::
     signalType, _, _, code = pullSignal(deadline - COMPUTER.uptime())
@@ -85,7 +85,7 @@ local function clear()
 end
 
 local function centrize(len)
-    return math.floor(width / 2 - len / 2)
+    return MATH.floor(width / 2 - len / 2)
 end
 
 local function centrizedSet(y, text, background, foreground)
@@ -105,9 +105,9 @@ local function rebindGPU()
 
         proportion = 2*(16*aspectWidth-4.5)/(16*aspectHeight-4.5)
         if proportion > width / height then
-            height = math.floor(width / proportion)
+            height = MATH.floor(width / proportion)
         else
-            width = math.floor(height * proportion)
+            width = MATH.floor(height * proportion)
         end
         gpu.set(1, 1, "")
         gpu.setResolution(width, height)
@@ -120,7 +120,7 @@ local function status(text, title, wait, breakCode, onBreak)
     if gpu and screen then
         clear()
         split(text)
-        local y = math.ceil(height / 2 - #lines / 2)
+        local y = MATH.ceil(height / 2 - #lines / 2)
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xffffff)
@@ -225,7 +225,7 @@ local function addCandidate(address)
                 local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
 
                 ::LOOP::
-                chunk = proxy.read(handle, math.huge)
+                chunk = proxy.read(handle, MATH.huge)
         
                 if chunk then
                     data = data .. chunk
@@ -238,7 +238,7 @@ local function addCandidate(address)
                 success, err = execute(data, "=" .. bootFile, F, 1)
                 success = success and COMPUTER.shutdown()
                 rebindGPU()
-                status(err, "¯\\_(ツ)_/¯", math.huge, 0, COMPUTER.shutdown)
+                status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
                 error(err)
             end
         end or COMPUTER.uptime
@@ -281,7 +281,7 @@ local function bootloader()
 
         for i = 1, #elements do
             if elements.s == i and drawSelected then
-                fill(x - spaces / 2, y - math.floor(borderHeight / 2), UNICODE.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
+                fill(x - spaces / 2, y - MATH.floor(borderHeight / 2), UNICODE.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
                 set(x, y, elements[i][1], 0x8cb9c5, 0x002b36)
             else
                 set(x, y, elements[i][1], 0x002b36, 0x8cb9c5)
@@ -302,7 +302,7 @@ local function bootloader()
                 bootCandidates[elementsBootables.s].p(F, y + 3)
     
                 centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                    math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                    MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
                     drive.isReadOnly() and "Read only" or "Read & Write",
                     drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
                 )
@@ -403,9 +403,9 @@ local function bootloader()
 
                     data = select(2, execute(data, "=stdin", F, 1, pcall)) or ""
                     rebindGPU()
-                    status(data, "Internet boot", #data == 0 and 0 or math.huge)
+                    status(data, "Internet boot", #data == 0 and 0 or MATH.huge)
                 else
-                    status("Invalid URL", "Internet boot", math.huge)
+                    status("Invalid URL", "Internet boot", MATH.huge)
                 end
             end
         end}
