@@ -4,7 +4,7 @@
 For **OpenOS**, just run this command:
 
 ```
-wget -f https://github.com/BrightYC/Cyan/blob/master/stuff/cyan.bin?raw=true && flash -q cyan.bin "Cyan BIOS"
+wget -f https://raw.githubusercontent.com/BrightYC/Cyan/master/installer.lua /tmp/installer.lua && /tmp/installer.lua
 ```
 
 For **MineOS**, you need to find app with name `Cyan BIOS`.
@@ -21,7 +21,7 @@ Executes file from specified URL
 
 ## Whitelist access
 Prevents booting, for example, if computer stays in some private places.
-To boot, it needs some input from user that defined in whitelist (It can be edited via running config.lua).
+To boot, it needs some input from user that defined in whitelist.
 
 ## How to build own Cyan BIOS?
 Just run compress.lua (before that minify the code, for example here: https://mothereff.in/lua-minifier) and make sure that minified.lua file stored in the same folder that compress.lua
