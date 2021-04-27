@@ -4,7 +4,7 @@ local function pullSignal(timeout)
     local signal = {COMPUTER.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
-    if cyan and cyan[1].n > 0 and (signal[1]:match("ey") and not cyan[1][signal[5]] or signal[1]:match("cl") and not cyan[1][signal[4]]) then
+    if cyan and ( signal[1]:match("ey") and not cyan:match(signal[5]) or signal[1]:match("cl") and not cyan:match(signal[4]) ) then
         return ""
     end
 
@@ -216,7 +216,7 @@ local function addCandidate(address)
                     cutText(address, booting and width > 80 and 36 or 6)
                 ), F, not booting and 0xffffff)
 
-                booting = booting and not userChecked and status"Hold ENTER to boot" and sleep(math.huge, 28)
+                booting = booting and not userChecked and cyan:match("$") and (status("Hold ENTER to boot") or sleep(F, 28))
             end
         }
 
@@ -454,7 +454,6 @@ end
 COMPUTER.getBootAddress = function(...) return proxy"pro".getData(...) end
 COMPUTER.setBootAddress = function(...) proxy"pro".setData(...) end
 currentBootAddress = COMPUTER.getBootAddress()
-userChecked = (not cyan or not cyan[2]) and 1
 updateCandidates()
 rebindGPU()
 status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)

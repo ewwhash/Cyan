@@ -89,11 +89,12 @@ container:addChild(GUI.roundedButton(18, 15, 15, 1, 0xE1E1E1, 0x696969, 0x878787
     local config = ""
 
     if users:count() > 0 then
-        config = "cyan={{"
+        config = 'cyan="'
         for i = 1, users:count() do
-            config = config .. '["' .. users:getItem(i).text .. '"]=1,'
+            config = config .. users:getItem(i).text .. '|'
         end
-        config = config .. "n=" .. users:count() .. "}" .. (userInput.state and ",1" or "") .. "}"
+        config = config .. (userInput.state and "$" or "") .. '"'
+        GUI.alert(config)
     end
 
     if #config > 64 then
