@@ -260,7 +260,7 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(COMPUTER.getBootAddress())
+    addCandidate(COMPUTER.getBootAddress() or "")
 
     for address in next, COMPONENT.list"file" do
         addCandidate(address ~= COMPUTER.getBootAddress() and address or "")
