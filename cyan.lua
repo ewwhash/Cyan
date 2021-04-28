@@ -55,8 +55,8 @@ local function split(text, tabulate)
     end
 end
 
-local function sleep(timeout, breakCode, onBreak)
-    local deadline, signalType, code, _ = COMPUTER.uptime() + (timeout or MATH.huge)
+local function sleep(timeout, breakCode, onBreak, deadline, signalType, code, _)
+    deadline = COMPUTER.uptime() + (timeout or MATH.huge)
 
     ::LOOP::
     signalType, _, _, code = pullSignal(deadline - COMPUTER.uptime())
@@ -116,11 +116,11 @@ local function rebindGPU()
     end
 end
 
-local function status(text, title, wait, breakCode, onBreak)
+local function status(text, title, wait, breakCode, onBreak, y)
     if gpu and screen then
         clear()
         split(text)
-        local y = MATH.ceil(height / 2 - #lines / 2)
+        y = MATH.ceil(height / 2 - #lines / 2)
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xffffff)
@@ -138,7 +138,7 @@ local function cutText(text, maxLength)
     return UNICODE.len(text) > maxLength and UNICODE.sub(text, 1, maxLength) .. "…" or text
 end
 
-local function input(prefix, y, centrized, historyText, foreground, env)
+local function input(prefix, y, centrized, historyText, foreground)
     local text, prefixLen, cursorPos, cursorState, cursorX, x, signalType, char, code, _ = "", UNICODE.len(prefix), 1, 1
     foreground = foreground or 0x8cb9c5
 
@@ -221,24 +221,26 @@ local function addCandidate(address)
         }
 
         bootCandidates[i].b = function()
-            local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
+            if bootFile then
+                local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
 
-            ::LOOP::
-            chunk = proxy.read(handle, MATH.huge)
-    
-            if chunk then
-                data = data .. chunk
-                goto LOOP
+                ::LOOP::
+                chunk = proxy.read(handle, MATH.huge)
+        
+                if chunk then
+                    data = data .. chunk
+                    goto LOOP
+                end
+        
+                proxy.close(handle)
+                pcall(bootCandidates[i].p, 1)
+                chunk = COMPUTER.getBootAddress() ~= address and COMPUTER.setBootAddress(address)
+                success, err = execute(data, "=" .. bootFile, F, 1)
+                success = success and COMPUTER.shutdown()
+                rebindGPU()
+                status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
+                error(err)
             end
-    
-            proxy.close(handle)
-            pcall(bootCandidates[i].p, 1)
-            chunk = COMPUTER.getBootAddress() ~= address and COMPUTER.setBootAddress(address)
-            success, err = execute(data, "=" .. bootFile, F, 1)
-            success = success and COMPUTER.shutdown()
-            rebindGPU()
-            status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
-            error(err)
         end
 
         for j = 1, #bootFiles do
@@ -265,136 +267,86 @@ local function updateCandidates()
     end
 end
 
-local function bootloader()
-    userChecked = 1
-    ::UPDATE::
-    local elementsBootables, drawElements, correction, elementsPrimary, draw, selectedElements, signalType, code, newLabel, data, url, y, drive, env, text, str, bootingEntry, _ = {s = 1},
-    
-    function(elements, y, spaces, borderHeight, drawSelected, onDraw)
-        local elementsLineLength, x = 0
+local function drawElements(elements, y, spaces, borderHeight, drawSelected, onDraw)
+    local elementsLineLength, x = 0
 
-        for i = 1, #elements do
-            elementsLineLength = elementsLineLength + UNICODE.len(elements[i][1]) + spaces
-        end
-
-        elementsLineLength = elementsLineLength - spaces
-        x = centrize(elementsLineLength)
-
-        if onDraw then
-            onDraw()
-        end
-
-        for i = 1, #elements do
-            if elements.s == i and drawSelected then
-                fill(x - spaces / 2, y - MATH.floor(borderHeight / 2), UNICODE.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
-                set(x, y, elements[i][1], 0x8cb9c5, 0x002b36)
-            else
-                set(x, y, elements[i][1], 0x002b36, 0x8cb9c5)
-            end
-
-            x = x + UNICODE.len(elements[i][1]) + spaces
-        end
+    for i = 1, #elements do
+        elementsLineLength = elementsLineLength + UNICODE.len(elements[i][1]) + spaces
     end
 
-    function draw()
-        clear()
+    elementsLineLength = elementsLineLength - spaces
+    x = centrize(elementsLineLength)
 
-        if selectedElements.z then
-            centrizedSet(height / 2 - 2, "Select boot entry", F, 0xffffff)
-            drawElements(selectedElements, height / 2 + 2, 6, 3, 1)
+    if onDraw then
+        onDraw()
+    end
+
+    for i = 1, #elements do
+        if elements.s == i and drawSelected then
+            fill(x - spaces / 2, y - MATH.floor(borderHeight / 2), UNICODE.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
+            set(x, y, elements[i][1], 0x8cb9c5, 0x002b36)
         else
-            y = height / 2 - (#bootCandidates > 0 and -1 or 1)
-        
-            drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
-                if #bootCandidates > 0 then
-                    drive = bootCandidates[elementsBootables.s].r
-        
-                    bootCandidates[elementsBootables.s].p(F, y + 3)
-        
-                    centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                        MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
-                        drive.isReadOnly() and "Read only" or "Read & Write",
-                        drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
-                    )
-        
-                    for i = correction, #elementsPrimary do
-                        elementsPrimary[i] = F
-                    end
-        
-                    if not drive.isReadOnly() then
-                        elementsPrimary[correction] = {"Rename", function()
-                            clear()
-                            centrizedSet(height / 2 - 1, "Rename", F, 0xffffff)
-                            newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
-                
-                            if newLabel and #newLabel > 0 then
-                                drive.setLabel(newLabel)
-                                updateCandidates()
-                            end
-                        end}
-        
-                        elementsPrimary[correction + 1] = {"Format", function()
-                            drive.remove("/")
-                            drive.setLabel(F)
-                            updateCandidates()
-                        end}
-                    end
-                else
-                    centrizedSet(y + 3, "No drives available", F, 0xffffff)
-                end
-            end)
-
-            drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
+            set(x, y, elements[i][1], 0x002b36, 0x8cb9c5)
         end
+
+        x = x + UNICODE.len(elements[i][1]) + spaces
     end
+end
+
+local function shell(env, data, str, text)
+    clear()
+    env = setmetatable({
+        print = function(...)
+            text = table.pack(...)
+            for i = 1, text.n do
+                if type(text[i]) == "table" then
+                    str = ''
+        
+                    for k, v in pairs(text[i]) do
+                        str = str .. tostring(k) .. "    " .. tostring(v) .. "\n"
+                    end
+        
+                    text[i] = str
+                else
+                    text[i] = tostring(text[i])
+                end
+            end
+            split(table.concat(text, "    "), 1)
+        
+            for i = 1, #lines do
+                gpu.copy(1, 1, width, height - 1, 0, -1)
+                fill(1, height - 1, width, 1)
+                set(1, height - 1, lines[i])
+            end
+        end,
+        proxy = proxy,
+        sleep = function(timeout)
+            sleep(timeout, 32, error)
+        end
+    }, {__index = _G})
+
+    ::LOOP::
+    data = input("> ", height, F, data, 0xffffff, env)
+
+    if data then
+        env.print("> " .. data)
+        fill(1, height, width, 1)
+        set(1, height, ">")
+        env.print(select(2, execute(data, "=shell", env)))
+        goto LOOP
+    end
+end
+
+local function bootloader()
+    userChecked = 1, not gpu and error("No drives available")
+    ::UPDATE::
+    local elementsBootables, correction, elementsPrimary, selectedElements, signalType, code, newLabel, url, y, drive, bootingEntry, _ = {s = 1}
 
     elementsPrimary = {
         s = 1,
         p = 1,
         {"Halt", COMPUTER.shutdown},
-        {"Shell", function()
-            clear()
-            env = setmetatable({
-                print = function(...)
-                    text = table.pack(...)
-                    for i = 1, text.n do
-                        if type(text[i]) == "table" then
-                            str = ''
-                
-                            for k, v in pairs(text[i]) do
-                                str = str .. tostring(k) .. "    " .. tostring(v) .. "\n"
-                            end
-                
-                            text[i] = str
-                        else
-                            text[i] = tostring(text[i])
-                        end
-                    end
-                    split(table.concat(text, "    "), 1)
-                
-                    for i = 1, #lines do
-                        gpu.copy(1, 1, width, height - 1, 0, -1)
-                        fill(1, height - 1, width, 1)
-                        set(1, height - 1, lines[i])
-                    end
-                end,
-                proxy = proxy,
-                sleep = function(timeout)
-                    sleep(timeout, 32, error)
-                end
-            }, {__index = _G})
-
-            ::LOOP::
-            data = input("> ", height, F, data, 0xffffff, env)
-
-            if data then
-                env.print("> " .. data)
-                fill(1, height, width, 1)
-                set(1, height, ">")
-                env.print(select(2, execute(data, "=shell", env)))
-                goto LOOP
-            end
-        end},
+        {"Shell", shell},
         proxy"net" and {"Netboot", function()
             clear()
             centrizedSet(height / 2 - 1, "Netboot", F, 0xffffff)
@@ -445,35 +397,82 @@ local function bootloader()
     selectedElements = #bootCandidates > 0 and elementsBootables or elementsPrimary
 
     ::LOOP::
-        pcall(draw)
-        signalType, _, _, code = pullSignal()
-        
-        if signalType == "F" then
-            COMPUTER.shutdown()
-        else
-            if signalType:match"do" then -- if you read this message please help they they forced me to do this
-                selectedElements = (code == 200 or code == 208) and (
-                    selectedElements.z and elementsBootables or #bootCandidates > 0 and ( -- Up
-                        selectedElements.p and elementsBootables or elementsPrimary
-                    ) or selectedElements
-                ) or selectedElements
+        pcall(function()
+            clear()
 
-                selectedElements.s = 
-                code == 203 and ( -- Left
-                    selectedElements.s == 1 and #selectedElements or selectedElements.s - 1
-                ) or code == 205 and (
-                    selectedElements.s == #selectedElements and 1 or selectedElements.s + 1 -- Right
-                ) or selectedElements.s
+            if selectedElements.z then
+                centrizedSet(height / 2 - 2, "Select boot entry", F, 0xffffff)
+                drawElements(selectedElements, height / 2 + 2, 6, 3, 1)
+            else
+                y = height / 2 - (#bootCandidates > 0 and -1 or 1)
+            
+                drawElements(elementsBootables, y - 4, 8, 3, not selectedElements.p and 1, function()
+                    if #bootCandidates > 0 then
+                        drive = bootCandidates[elementsBootables.s].r
+            
+                        bootCandidates[elementsBootables.s].p(F, y + 3)
+            
+                        centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
+                            MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                            drive.isReadOnly() and "Read only" or "Read & Write",
+                            drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
+                        )
+            
+                        for i = correction, #elementsPrimary do
+                            elementsPrimary[i] = F
+                        end
+            
+                        if not drive.isReadOnly() then
+                            elementsPrimary[correction] = {"Rename", function()
+                                clear()
+                                centrizedSet(height / 2 - 1, "Rename", F, 0xffffff)
+                                newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
                     
-                if code == 28 then -- Enter
-                    pcall(selectedElements[selectedElements.s][2])
-                end
+                                if newLabel and #newLabel > 0 then
+                                    drive.setLabel(newLabel)
+                                    updateCandidates()
+                                end
+                            end}
+            
+                            elementsPrimary[correction + 1] = {"Format", function()
+                                drive.remove("/")
+                                drive.setLabel(F)
+                                updateCandidates()
+                            end}
+                        end
+                    else
+                        centrizedSet(y + 3, "No drives available", F, 0xffffff)
+                    end
+                end)
+    
+                drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
             end
+        end)
+        signalType, _, _, code = pullSignal()
+        _ = signalType == "F" and COMPUTER.shutdown()
+        
+        if signalType:match"do" then -- if you read this message please help they they forced me to do this
+            selectedElements = (code == 200 or code == 208) and (
+                selectedElements.z and elementsBootables or #bootCandidates > 0 and ( -- Up
+                    selectedElements.p and elementsBootables or elementsPrimary
+                )
+            ) or selectedElements
 
-            if signalType:match"mp" or redraw then
-                pcall(rebindGPU)
-                goto UPDATE
+            selectedElements.s = 
+            code == 203 and ( -- Left
+                selectedElements.s == 1 and #selectedElements or selectedElements.s - 1
+            ) or code == 205 and (
+                selectedElements.s == #selectedElements and 1 or selectedElements.s + 1 -- Right
+            ) or selectedElements.s
+            
+            if code == 28 then -- Enter
+                pcall(selectedElements[selectedElements.s][2])
             end
+        end
+
+        if signalType:match"mp" or redraw then
+            pcall(rebindGPU)
+            goto UPDATE
         end
     goto LOOP
 end
@@ -486,4 +485,4 @@ status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
 for i = 1, #bootCandidates do
     bootCandidates[i].b()
 end
-gpu = gpu and screen and bootloader() or error("No drives available")
+bootloader()
