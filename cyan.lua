@@ -16,32 +16,6 @@ local function pullSignal(timeout)
 
     return table.unpack(signal)
 end
-    
-local function execute(code, stdin, env, palette, call)
-    call = call or xpcall
-    local chunk, err = load("return " .. code, stdin, F, env)
-
-    if not chunk then
-        chunk, err = load(code, stdin, F, env)
-    end
-
-    if chunk then
-        env = COMPONENT.invoke
-        COMPONENT.invoke = palette and function(address, method, ...)
-            if gpu and address == gpu.address and method == "set" then
-                gpu.setPaletteColor(9, 0x969696)
-                gpu.setPaletteColor(11, 0xb4b4b4)
-                COMPONENT.invoke = env
-            end
-    
-            return env(address, method, ...)
-        end or env
-
-        return call(chunk, debug.traceback)
-    end
-        
-    return F, err
-end
 
 local function proxy(componentType)
     return COMPONENT.list(componentType)() and COMPONENT.proxy(COMPONENT.list(componentType)())
@@ -109,7 +83,6 @@ local function rebindGPU()
         else
             width = MATH.floor(height * proportion)
         end
-        gpu.set(1, 1, "")
         gpu.setResolution(width, height)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -188,6 +161,27 @@ local function input(prefix, y, centrized, historyText, foreground)
     goto LOOP
 end
 
+local function execute(code, stdin, env, palette, call)
+    call = call or xpcall
+    local chunk, err = load("return " .. code, stdin, F, env)
+
+    if not chunk then
+        chunk, err = load(code, stdin, F, env)
+
+        if chunk then
+            if palette then
+                fill(1, 1, width, height, 0)
+                gpu.setPaletteColor(9, 0x969696)
+                gpu.setPaletteColor(11, 0xb4b4b4)
+            end
+
+            return call(chunk, debug.traceback)
+        end
+    end
+        
+    return F, err
+end
+
 local function addCandidate(address)
     local proxy, allBootFiles, bootFile, i = COMPONENT.proxy(address), {s = 1, z = 1}
 
@@ -236,9 +230,9 @@ local function addCandidate(address)
                 pcall(bootCandidates[i].p, 1)
                 chunk = COMPUTER.getBootAddress() ~= address and COMPUTER.setBootAddress(address)
                 success, err = execute(data, "=" .. bootFile, F, 1)
-                success = success and COMPUTER.shutdown()
-                rebindGPU()
-                status(err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
+                success = success and pcall(COMPUTER.shutdown)
+                pcall(rebindGPU)
+                pcall(status, err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
                 error(err)
             end
         end
