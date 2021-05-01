@@ -170,6 +170,7 @@ local function execute(code, stdin, env, palette, call)
 
         if chunk then
             if palette then
+                sleep(.3)
                 fill(1, 1, width, height, 0)
                 gpu.setPaletteColor(9, 0x969696)
                 gpu.setPaletteColor(11, 0xb4b4b4)
