@@ -170,9 +170,9 @@ local function execute(code, stdin, env, palette, call)
     end
 
     if chunk then
-        if palette then
+        if palette and gpu then
             sleep(.3)
-            fill(1, 1, width, height, 0)
+            fill(1, 1, width or 0, height or 0, 0)
             gpu.setPaletteColor(9, 0x969696)
             gpu.setPaletteColor(11, 0xb4b4b4)
         end
@@ -446,7 +446,12 @@ local function bootloader()
         signalType, _, _, code = pullSignal()
         _ = signalType == "F" and COMPUTER.shutdown()
         
-        if signalType:match"do" then -- if you read this message please help they they forced me to do this
+        if signalType:match"mp" or redraw then
+            pcall(rebindGPU)
+            goto UPDATE
+        end
+
+        if signalType:match"do" and gpu and screen then -- if you read this message please help they they forced me to do this
             selectedElements = (code == 200 or code == 208) and (
                 selectedElements.z and elementsBootables or #bootCandidates > 0 and ( -- Up
                     selectedElements.p and elementsBootables or elementsPrimary
@@ -461,13 +466,8 @@ local function bootloader()
             ) or selectedElements.s
             
             if code == 28 then -- Enter
-                pcall(selectedElements[selectedElements.s][2])
+                selectedElements[selectedElements.s][2]()
             end
-        end
-
-        if signalType:match"mp" or redraw then
-            pcall(rebindGPU)
-            goto UPDATE
         end
     goto LOOP
 end
