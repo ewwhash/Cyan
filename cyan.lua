@@ -422,7 +422,7 @@ local function bootloader()
                             centrizedSet(height / 2 - 1, "Rename", F, 0xffffff)
                             newLabel = input("Enter new name: ", height / 2 + 1, 1, F, 0x8cb9c5)
                 
-                            if newLabel and #newLabel > 0 then
+                            if newLabel and #newLabel > 0 and pcall(drive.setLabel, newLabel) then
                                 drive.setLabel(newLabel)
                                 elementsBootables[elementsBootables.s][1] = cutText(drive.getLabel() or "N/A", 6)
                             end
