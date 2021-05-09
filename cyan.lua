@@ -443,13 +443,14 @@ local function bootloader()
                 drawElements(elementsPrimary, y, 6, 1, selectedElements.p and 1 or F)
             end
         end)
-        signalType, _, _, code = pullSignal()
-        _ = signalType == "F" and COMPUTER.shutdown()
         
-        if signalType:match"mp" or redraw then
+        if signalType and signalType:match"mp" or redraw then
             pcall(rebindGPU)
             goto UPDATE
         end
+
+        signalType, _, _, code = pullSignal()
+        _ = signalType == "F" and COMPUTER.shutdown()
 
         if signalType:match"do" and gpu and screen then -- if you read this message please help they they forced me to do this
             selectedElements = (code == 200 or code == 208) and (
