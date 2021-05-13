@@ -18,7 +18,7 @@ local localizations = {
         userInput = "Wait for input when booting:",
         options = "Options",
         flashFailed = "Flash failed, reason:",
-        downloadFiled = "Download failed, reason:"
+        downloadFailed = "Download failed, reason:"
     },
     ["Russian"] = {
         flash = "Прошить",
@@ -34,7 +34,7 @@ local localizations = {
         userInput = "Ждать нажатия для загрузки:",
         options = "Опции",
         flashFailed = "Прошивка неудачна, причина:",
-        downloadFiled = "Не удалось загрузить файл, приина:"
+        downloadFailed = "Не удалось загрузить файл, приина:"
     }
 }
 
@@ -142,7 +142,7 @@ container:addChild(GUI.roundedButton(18, 15, 15, 1, 0xE1E1E1, 0x696969, 0x878787
                 container.hidden = false
             end
         else
-            GUI.alert(localization.downloadFiled .. " " .. tostring(reason))
+            GUI.alert(localization.downloadFailed .. " " .. tostring(reason))
             flashContainer:remove()
             container.hidden = false
         end
