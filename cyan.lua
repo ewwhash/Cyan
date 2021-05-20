@@ -1,7 +1,7 @@
-local COMPONENT, COMPUTER, UNICODE, MATH, bootFiles, bootCandidates, keys, userChecked, width, height, gpu, screen, redraw, lines = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}, {}
+local component, computer, unicode, math, bootFiles, bootCandidates, keys, userChecked, width, height, gpu, screen, redraw, lines = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}, {}
 
 local function pullSignal(timeout)
-    local signal = {COMPUTER.pullSignal(timeout)}
+    local signal = {computer.pullSignal(timeout)}
     signal[1] = signal[1] or ""
 
     if cyan and ( signal[1]:match("ey") and not cyan:match(signal[5]) or signal[1]:match("cl") and not cyan:match(signal[4]) ) then
@@ -18,7 +18,7 @@ local function pullSignal(timeout)
 end
 
 local function proxy(componentType)
-    return COMPONENT.list(componentType)() and COMPONENT.proxy(COMPONENT.list(componentType)())
+    return component.list(componentType)() and component.proxy(component.list(componentType)())
 end
 
 local function split(text, tabulate)
@@ -30,14 +30,14 @@ local function split(text, tabulate)
 end
 
 local function sleep(timeout, breakCode, onBreak, deadline, signalType, code, _)
-    deadline = COMPUTER.uptime() + (timeout or MATH.huge)
+    deadline = computer.uptime() + (timeout or math.huge)
 
     ::LOOP::
-    signalType, _, _, code = pullSignal(deadline - COMPUTER.uptime())
+    signalType, _, _, code = pullSignal(deadline - computer.uptime())
 
     if signalType == "F" or signalType:match"do" and (code == breakCode or breakCode == 0) then
         return 1, onBreak and onBreak()
-    elseif COMPUTER.uptime() < deadline then
+    elseif computer.uptime() < deadline then
         goto LOOP
     end
 end
@@ -59,11 +59,11 @@ local function clear()
 end
 
 local function centrize(len)
-    return MATH.floor(width / 2 - len / 2)
+    return math.floor(width / 2 - len / 2)
 end
 
 local function centrizedSet(y, text, background, foreground)
-    set(centrize(UNICODE.len(text)), y, text, background, foreground)
+    set(centrize(unicode.len(text)), y, text, background, foreground)
 end
 
 local function rebindGPU()
@@ -79,10 +79,9 @@ local function rebindGPU()
 
         proportion = 2*(16*aspectWidth-4.5)/(16*aspectHeight-4.5)
         if proportion > width / height then
-            height = MATH.floor(width / proportion)
-        else
-            width = MATH.floor(height * proportion)
+            height = math.floor(width / proportion)
         end
+        width = math.floor(height * proportion)
         gpu.setResolution(width, height)
         gpu.setPaletteColor(9, 0x002b36)
         gpu.setPaletteColor(11, 0x8cb9c5)
@@ -93,7 +92,7 @@ local function status(text, title, wait, breakCode, onBreak, y)
     if gpu and screen then
         clear()
         split(text)
-        y = MATH.ceil(height / 2 - #lines / 2)
+        y = math.ceil(height / 2 - #lines / 2)
 
         if title then
             centrizedSet(y - 1, title, 0x002b36, 0xffffff)
@@ -108,15 +107,15 @@ local function status(text, title, wait, breakCode, onBreak, y)
 end
 
 local function cutText(text, maxLength)
-    return UNICODE.len(text) > maxLength and UNICODE.sub(text, 1, maxLength) .. "…" or text
+    return unicode.len(text) > maxLength and unicode.sub(text, 1, maxLength) .. "…" or text
 end
 
 local function input(prefix, y, centrized, historyText, foreground)
-    local text, prefixLen, cursorPos, cursorState, cursorX, x, signalType, char, code, _ = "", UNICODE.len(prefix), 1, 1
+    local text, prefixLen, cursorPos, cursorState, cursorX, x, signalType, char, code, _ = "", unicode.len(prefix), 1, 1
     foreground = foreground or 0x8cb9c5
 
     ::LOOP::
-        x = centrized and centrize(UNICODE.len(text) + prefixLen) or 1
+        x = centrized and centrize(unicode.len(text) + prefixLen) or 1
         cursorX = x + prefixLen + cursorPos - 1
 
         fill(1, y, width, 1)
@@ -130,28 +129,28 @@ local function input(prefix, y, centrized, historyText, foreground)
         if signalType:match"do" then
             if code == 203 and cursorPos > 1 then
                 cursorPos = cursorPos - 1
-            elseif code == 205 and cursorPos <= UNICODE.len(text) then
+            elseif code == 205 and cursorPos <= unicode.len(text) then
                 cursorPos = cursorPos + 1
             elseif code == 200 and historyText then
                 text = historyText
-                cursorPos = UNICODE.len(historyText) + 1
+                cursorPos = unicode.len(historyText) + 1
             elseif code == 208 and historyText then
                 text = ""
                 cursorPos = 1
             elseif code == 14 and #text > 0 and cursorPos > 1 then
-                text = keys[29] and "" or UNICODE.sub(UNICODE.sub(text, 1, cursorPos - 1), 1, -2) .. UNICODE.sub(text, cursorPos, -1)
+                text = keys[29] and "" or unicode.sub(unicode.sub(text, 1, cursorPos - 1), 1, -2) .. unicode.sub(text, cursorPos, -1)
                 cursorPos = keys[29] and 1 or cursorPos - 1
             elseif code == 28 then
                 return text
-            elseif char >= 32 and UNICODE.len(prefixLen .. text) < width - prefixLen then
-                text = UNICODE.sub(text, 1, cursorPos - 1) .. UNICODE.char(char) .. UNICODE.sub(text, cursorPos, -1)
+            elseif char >= 32 and unicode.len(prefixLen .. text) < width - prefixLen then
+                text = unicode.sub(text, 1, cursorPos - 1) .. unicode.char(char) .. unicode.sub(text, cursorPos, -1)
                 cursorPos = cursorPos + 1
             end
             
             cursorState = 1
         elseif signalType:match"cl" then
-            text = UNICODE.sub(text, 1, cursorPos - 1) .. char .. UNICODE.sub(text, cursorPos, -1)
-            cursorPos = cursorPos + UNICODE.len(char)
+            text = unicode.sub(text, 1, cursorPos - 1) .. char .. unicode.sub(text, cursorPos, -1)
+            cursorPos = cursorPos + unicode.len(char)
         elseif signalType:match"mp" or signalType == "F" then
             redraw = signalType:match"mp" and 1
             return
@@ -184,9 +183,9 @@ local function execute(code, stdin, env, palette, call)
 end
 
 local function addCandidate(address)
-    local proxy, allBootFiles, bootFile, i = COMPONENT.proxy(address), {s = 1, z = 1}
+    local proxy, allBootFiles, bootFile, i = component.proxy(address), {s = 1, z = 1}
 
-    if proxy and address ~= COMPUTER.tmpAddress() then
+    if proxy and address ~= computer.tmpAddress() then
         i = #bootCandidates + 1
 
         bootCandidates[i] = {
@@ -203,7 +202,7 @@ local function addCandidate(address)
                         cutText(address, width > 80 and 36 or 6)
                     ) or bootFile and ("Boot%s %s (%s)"):format(
                         (#allBootFiles == 1 and " " .. bootFile or "") .. " from",
-                        cutText(proxy.getLabel() or "N/A", 6),
+                        proxy.getLabel() or "N/A",
                         cutText(address, 6)
                     ) or ("Boot from %s (%s) isn't available"):format(
                         proxy.getLabel() or "N/A",
@@ -220,7 +219,7 @@ local function addCandidate(address)
                 local handle, data, chunk, success, err = proxy.open(bootFile, "r"), ""
 
                 ::LOOP::
-                chunk = proxy.read(handle, MATH.huge)
+                chunk = proxy.read(handle, math.huge)
         
                 if chunk then
                     data = data .. chunk
@@ -229,11 +228,11 @@ local function addCandidate(address)
         
                 proxy.close(handle)
                 pcall(bootCandidates[i].p, 1)
-                chunk = COMPUTER.getBootAddress() ~= address and COMPUTER.setBootAddress(address)
+                chunk = computer.getBootAddress() ~= address and computer.setBootAddress(address)
                 success, err = execute(data, "=" .. bootFile, F, 1)
-                success = success and pcall(COMPUTER.shutdown)
+                success = success and pcall(computer.shutdown)
                 pcall(rebindGPU)
-                pcall(status, err, "¯\\_(ツ)_/¯", MATH.huge, 0, COMPUTER.shutdown)
+                pcall(status, err, "¯\\_(ツ)_/¯", math.huge, 0, computer.shutdown)
                 error(err)
             end
         end
@@ -255,10 +254,10 @@ end
 
 local function updateCandidates()
     bootCandidates = {}
-    addCandidate(COMPUTER.getBootAddress() or "")
+    addCandidate(computer.getBootAddress() or "")
 
-    for address in next, COMPONENT.list"file" do
-        addCandidate(address ~= COMPUTER.getBootAddress() and address or "")
+    for address in next, component.list"file" do
+        addCandidate(address ~= computer.getBootAddress() and address or "")
     end
 end
 
@@ -266,7 +265,7 @@ local function drawElements(elements, y, spaces, borderHeight, drawSelected, onD
     local elementsLineLength, x = 0
 
     for i = 1, #elements do
-        elementsLineLength = elementsLineLength + UNICODE.len(elements[i][1]) + spaces
+        elementsLineLength = elementsLineLength + unicode.len(elements[i][1]) + spaces
     end
 
     elementsLineLength = elementsLineLength - spaces
@@ -278,13 +277,13 @@ local function drawElements(elements, y, spaces, borderHeight, drawSelected, onD
 
     for i = 1, #elements do
         if elements.s == i and drawSelected then
-            fill(x - spaces / 2, y - MATH.floor(borderHeight / 2), UNICODE.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
+            fill(x - spaces / 2, y - math.floor(borderHeight / 2), unicode.len(elements[i][1]) + spaces, borderHeight, 0x8cb9c5)
             set(x, y, elements[i][1], 0x8cb9c5, 0x002b36)
         else
             set(x, y, elements[i][1], 0x002b36, 0x8cb9c5)
         end
 
-        x = x + UNICODE.len(elements[i][1]) + spaces
+        x = x + unicode.len(elements[i][1]) + spaces
     end
 end
 
@@ -340,7 +339,7 @@ local function bootloader()
     elementsPrimary = {
         s = 1,
         p = 1,
-        {"Halt", COMPUTER.shutdown},
+        {"Halt", computer.shutdown},
         {"Shell", shell},
         proxy"net" and {"Netboot", function()
             clear()
@@ -362,9 +361,9 @@ local function bootloader()
 
                     data = select(2, execute(data, "=stdin", F, 1, pcall)) or ""
                     rebindGPU()
-                    status(data, "Netboot", #data == 0 and 0 or MATH.huge)
+                    status(data, "Netboot", #data == 0 and 0 or math.huge)
                 else
-                    status("Invalid URL", "Netboot", MATH.huge)
+                    status("Invalid URL", "Netboot", math.huge)
                 end
             end
         end}
@@ -408,7 +407,7 @@ local function bootloader()
                         bootCandidates[elementsBootables.s].p(F, y + 3)
             
                         centrizedSet(y + 5, ("Storage %s%% / %s / %s"):format(
-                            MATH.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
+                            math.floor(drive.spaceUsed() / (drive.spaceTotal() / 100)),
                             drive.isReadOnly() and "Read only" or "Read & Write",
                             drive.spaceTotal() < 2 ^ 20 and "FDD" or drive.spaceTotal() < 2 ^ 20 * 12 and "HDD" or "RAID")
                         )
@@ -450,7 +449,7 @@ local function bootloader()
         end
 
         signalType, _, _, code = pullSignal()
-        _ = signalType == "F" and COMPUTER.shutdown()
+        _ = signalType == "F" and computer.shutdown()
 
         if signalType:match"do" and gpu and screen then -- if you read this message please help they they forced me to do this
             selectedElements = (code == 200 or code == 208) and (
@@ -473,8 +472,8 @@ local function bootloader()
     goto LOOP
 end
 
-COMPUTER.getBootAddress = function() return proxy"pro" and proxy"pro".getData() end
-COMPUTER.setBootAddress = function(d) return proxy"pro" and proxy"pro".setData(d) end
+computer.getBootAddress = function() return proxy"pro" and proxy"pro".getData() end
+computer.setBootAddress = function(d) return proxy"pro" and proxy"pro".setData(d) end
 updateCandidates()
 rebindGPU()
 status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
