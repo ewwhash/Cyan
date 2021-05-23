@@ -33,7 +33,7 @@ if QA("Create a whitelist?") then
         end
 
         if #rawWhitelist > 0 and n > 0 then
-            config = 'cyan="' .. parsedWhitelist .. (QA("Require user input to boot?") and "$" or "") .. '"'
+            config = 'cyan="' .. parsedWhitelist .. (QA("Require user input to boot?") and "+" or "") .. '"'
 
             print(config, #config)
             if #config > 64 then

@@ -1,4 +1,4 @@
-local component, computer, unicode, math, bootFiles, bootCandidates, keys, userChecked, width, height, gpu, screen, redraw, lines = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}, {}
+local component, computer, unicode, math, bootFiles, bootCandidates, keys, userChecked, width, height, gpu, screen, redraw, lines = component, computer, unicode, math, {"/init.lua", "/OS.lua"}, {}, {}
 
 local function pullSignal(timeout)
     local signal = {computer.pullSignal(timeout)}
@@ -210,7 +210,7 @@ local function addCandidate(address)
                     )
                 , F, not booting and 0xffffff)
 
-                booting = booting and not userChecked and cyan:match("$") and (status("Hold ENTER to boot") or sleep(F, 28))
+                booting = booting and not userChecked and cyan and (cyan:match("+") and status("Hold ENTER to boot", F, math.huge, 28))
             end
         }
 
