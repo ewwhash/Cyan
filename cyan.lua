@@ -9,12 +9,7 @@ local function pullSignal(timeout)
     end
 
     keys[signal[4] or ""] = signal[1]:match"do" and 1
-
-    if keys[29] and (keys[46] or keys[32]) and signal[1]:match"do" then
-        return "F"
-    end
-
-    return table.unpack(signal)
+    return table.unpack(keys[29] and (keys[46] or keys[32]) and signal[1]:match"do" and {"F"} or signal)
 end
 
 local function proxy(componentType)
@@ -69,41 +64,39 @@ end
 local function rebindGPU()
     gpu, screen = proxy"gp", proxy"sc"
 
-    if gpu and screen then
-        if gpu.getScreen() ~= screen.address then
-            gpu.bind((screen.address))
-        end
-
-        local aspectWidth, aspectHeight, proportion = screen.getAspectRatio()
-        width, height = gpu.maxResolution()
-
-        proportion = 2*(16*aspectWidth-4.5)/(16*aspectHeight-4.5)
-        if proportion > width / height then
-            height = math.floor(width / proportion)
-        end
-        width = math.floor(height * proportion)
-        gpu.setResolution(width, height)
-        gpu.setPaletteColor(9, 0x002b36)
-        gpu.setPaletteColor(11, 0x8cb9c5)
+    if gpu.getScreen() ~= screen.address then
+        gpu.bind((screen.address))
     end
+    
+    gpu.setPaletteColor(9, 0x002b36)
+    gpu.setPaletteColor(11, 0x8cb9c5)
+
+    local aspectWidth, aspectHeight, proportion = screen.getAspectRatio()
+    width, height = gpu.maxResolution()
+
+    if not proxy"able" then
+        proportion = 2*(16*aspectWidth-4.5)/(16*aspectHeight-4.5)
+        height = proportion > width / height and math.floor(width / proportion) or height
+        width = math.floor(height * proportion)
+    end
+    
+    gpu.setResolution(width, height)
 end
 
 local function status(text, title, wait, breakCode, onBreak, y)
-    if gpu and screen then
-        clear()
-        split(text)
-        y = math.ceil(height / 2 - #lines / 2)
+    clear()
+    split(text)
+    y = math.ceil(height / 2 - #lines / 2)
 
-        if title then
-            centrizedSet(y - 1, title, 0x002b36, 0xffffff)
-            y = y + 1
-        end
-        for i = 1, #lines do
-            centrizedSet(y, lines[i])
-            y = y + 1
-        end
-        sleep(wait or 0, breakCode or 0, onBreak)
+    if title then
+        centrizedSet(y - 1, title, 0x002b36, 0xffffff)
+        y = y + 1
     end
+    for i = 1, #lines do
+        centrizedSet(y, lines[i])
+        y = y + 1
+    end
+    sleep(wait or 0, breakCode or 0, onBreak)
 end
 
 local function cutText(text, maxLength)
@@ -210,7 +203,7 @@ local function addCandidate(address)
                     )
                 , F, not booting and 0xffffff)
 
-                booting = booting and not userChecked and cyan and (cyan:match("+") and status("Hold ENTER to boot", F, math.huge, 28))
+                booting = booting and not userChecked and cyan and (cyan:match("+") and pcall(status, "Hold ENTER to boot", F, math.huge, 28))
             end
         }
 
@@ -293,7 +286,7 @@ local function shell(env, data, str, text)
         print = function(...)
             text = table.pack(...)
             for i = 1, text.n do
-                if type(text[i]) == "table" then
+                if type(text[i]):match"able" then
                     str = ''
         
                     for k, v in pairs(text[i]) do
@@ -301,9 +294,9 @@ local function shell(env, data, str, text)
                     end
         
                     text[i] = str
-                else
-                    text[i] = tostring(text[i])
                 end
+
+                text[i] = tostring(text[i])
             end
             split(table.concat(text, "    "), 1)
         
@@ -332,7 +325,7 @@ local function shell(env, data, str, text)
 end
 
 local function bootloader()
-    userChecked = 1, not gpu and error("No drives available")
+    userChecked = 1, not gpu and error"No drives available"
     ::UPDATE::
     local elementsBootables, correction, elementsPrimary, selectedElements, signalType, code, newLabel, url, y, drive, bootingEntry, _ = {s = 1}
 
@@ -360,8 +353,8 @@ local function bootloader()
                     end
 
                     data = select(2, execute(data, "=stdin", F, 1, pcall)) or ""
-                    rebindGPU()
-                    status(data, "Netboot", #data == 0 and 0 or math.huge)
+                    pcall(rebindGPU)
+                    pcall(status, data, "Netboot", #data == 0 and 0 or math.huge)
                 else
                     status("Invalid URL", "Netboot", math.huge)
                 end
@@ -475,8 +468,8 @@ end
 computer.getBootAddress = function() return proxy"pro" and proxy"pro".getData() end
 computer.setBootAddress = function(d) return proxy"pro" and proxy"pro".setData(d) end
 updateCandidates()
-rebindGPU()
-status("Hold ALT to stay in bootloader", F, 1, 56, bootloader)
+pcall(rebindGPU)
+pcall(status, "Hold ALT to stay in bootloader", F, 1, 56, bootloader)
 for i = 1, #bootCandidates do
     bootCandidates[i].b()
 end
