@@ -327,7 +327,7 @@ end
 local function bootloader()
     userChecked = 1, not gpu and error"No drives available"
     ::UPDATE::
-    local elementsBootables, correction, elementsPrimary, selectedElements, signalType, code, newLabel, url, y, drive, bootingEntry, _ = {s = 1}
+    local elementsBootables, correction, elementsPrimary, selectedElements, signalType, code, newLabel, url, y, drive, bootingEntry, update, _ = {s = 1}
 
     elementsPrimary = {
         s = 1,
@@ -365,22 +365,27 @@ local function bootloader()
     correction = #elementsPrimary + 1
     redraw = F
     bootingEntry = F
-    updateCandidates()
-    for i = 1, #bootCandidates do
-        elementsBootables[i] = {
-            cutText(bootCandidates[i].d.getLabel() or "N/A", 6),
-            function()
-                if #bootCandidates[i].l > 0 then
-                    bootingEntry = i
-                    selectedElements = bootCandidates[bootingEntry].l
 
-                    if #selectedElements == 1 then
-                        selectedElements[1][2]()
+    function update()
+        updateCandidates()
+        for i = 1, #bootCandidates do
+            elementsBootables[i] = {
+                cutText(bootCandidates[i].d.getLabel() or "N/A", 6),
+                function()
+                    if #bootCandidates[i].l > 0 then
+                        bootingEntry = i
+                        selectedElements = bootCandidates[bootingEntry].l
+
+                        if #selectedElements == 1 then
+                            selectedElements[1][2]()
+                        end
                     end
                 end
-            end
-        }
+            }
+        end
     end
+
+    update()
     selectedElements = #bootCandidates > 0 and elementsBootables or elementsPrimary
 
     ::LOOP::
@@ -416,7 +421,7 @@ local function bootloader()
                 
                             if newLabel and #newLabel > 0 and pcall(drive.setLabel, newLabel) then
                                 drive.setLabel(newLabel)
-                                elementsBootables[elementsBootables.s][1] = cutText(drive.getLabel() or "N/A", 6)
+                                update()
                             end
                         end}
 
@@ -424,7 +429,7 @@ local function bootloader()
                             elementsPrimary[correction + 1] = {"Format", function()
                                 drive.remove("/")
                                 drive.setLabel(F)
-                                elementsBootables[elementsBootables.s][1] = cutText(drive.getLabel() or "N/A", 6)
+                                update()
                             end}
                         end
                     else
