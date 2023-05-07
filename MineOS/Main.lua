@@ -51,6 +51,7 @@ local localizations = {
 		options = "Opciones",
 		flashFailed = "Escritura fallida, motivo:",
 		downloadFailed = "Descarga fallida, motivo:"
+	}
 }
 
 local localization = localizations[system.getUserSettings().localizationLanguage] or localizations["English"]
