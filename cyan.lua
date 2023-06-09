@@ -38,24 +38,14 @@ local function sleep(timeout, breakCode, onBreak, deadline, signalType, code, _)
 end
 
 local function set(x, y, string, background, foreground)
-    if gpu.getDepth() > 1 then
-        gpu.setBackground(background or 0x002b36)
-        gpu.setForeground(foreground or 0x8cb9c5)
-    else
-        gpu.setBackground(0xffffff)
-        gpu.setForeground(0x000000)
-    end
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
     gpu.set(x, y, string)
 end
 
 local function fill(x, y, w, h, background, foreground)
-    if gpu.getDepth() > 1 then
-        gpu.setBackground(background or 0x002b36)
-        gpu.setForeground(foreground or 0x8cb9c5)
-    else
-        gpu.setBackground(0x000000)
-        gpu.setForeground(0xffffff)
-    end
+    gpu.setBackground(background or 0x002b36)
+    gpu.setForeground(foreground or 0x8cb9c5)
     gpu.fill(x, y, w, h, " ")
 end
 
@@ -103,7 +93,7 @@ local function status(text, title, wait, breakCode, onBreak, y)
         y = y + 1
     end
     for i = 1, #lines do
-        centrizedSet(y, lines[i])
+        centrizedSet(y, lines[i], (gpu.getDepth() < 2 and 0xffffff), (gpu.getDepth() < 2 and 0x000000))
         y = y + 1
     end
     sleep(wait or 0, breakCode or 0, onBreak)
@@ -484,7 +474,12 @@ computer.getBootAddress = function() return proxy"pro" and proxy"pro".getData() 
 computer.setBootAddress = function(d) return proxy"pro" and proxy"pro".setData(d) end
 updateCandidates()
 pcall(rebindGPU)
-pcall(status, "Hold ALT to stay in bootloader", F, 1, 56, bootloader)
+if gpu.getDepth() > 1 then
+    pcall(status, "Hold ALT to stay in bootloader", F, 1, 56, bootloader)
+else
+    pcall(status, "Boot menu unsupported", F, 1, 56)
+end
+
 for i = 1, #bootCandidates do
     bootCandidates[i].b()
 end
