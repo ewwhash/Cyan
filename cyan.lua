@@ -38,14 +38,24 @@ local function sleep(timeout, breakCode, onBreak, deadline, signalType, code, _)
 end
 
 local function set(x, y, string, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
+    if gpu.getDepth() > 1 then
+        gpu.setBackground(background or 0x002b36)
+        gpu.setForeground(foreground or 0x8cb9c5)
+    else
+        gpu.setBackground(0xffffff)
+        gpu.setForeground(0x000000)
+    end
     gpu.set(x, y, string)
 end
 
 local function fill(x, y, w, h, background, foreground)
-    gpu.setBackground(background or 0x002b36)
-    gpu.setForeground(foreground or 0x8cb9c5)
+    if gpu.getDepth() > 1 then
+        gpu.setBackground(background or 0x002b36)
+        gpu.setForeground(foreground or 0x8cb9c5)
+    else
+        gpu.setBackground(0x000000)
+        gpu.setForeground(0xffffff)
+    end
     gpu.fill(x, y, w, h, " ")
 end
 
